@@ -15,7 +15,8 @@ Model inputs
 
 '''
 # Coordinates of all of the points in the reference (starting)
-# configuration
+# configuration: each of these should lie in span(e1, e2), i.e.
+# on the xy-plane
 reference_points = np.array([ 
 	[-20, -20],
 	[  0, -20],
@@ -28,8 +29,8 @@ reference_points = np.array([
 	[ 20,  20]
 ])
 
-# Matlab's y-axis points downwards, so we flip each of the reference
-# points here to be consistent with the author
+# Matlab's y-axis points downwards, so we could flip each of the 
+# reference points here to be consistent with the author
 if flip_y:
 	for point in reference_points:
 		point[1] *= -1.0
@@ -38,7 +39,7 @@ if flip_y:
 # the start + end vertices of each fold vector
 #
 # For example, an entry [0, 1] would correspond to the fold vector 
-# pointing from reference point 0 towards reference point 1
+# pointing *from* point 0 *towards* point 1
 fold_vector_points = np.array([
 	[4, 0],
 	[4, 1],
@@ -152,6 +153,9 @@ fold_angle_initial_value = np.array([
 
 
 
+
+
+
 '''
 Calculated data
 
@@ -233,6 +237,10 @@ for i, v in enumerate(fold_vector):
 # i -> index of the interior fold intersection 
 # j -> index of the `j`th fold surrounding the `i`th interior fold intersection
 # k -> 0 or 1, the x or y-coordinate
+# 
+# TODO: the fold vectors should stored in CCW order...
+#
+# TODO: what if certain interior folds have more (or less) incident folds than others?
 fold_direction_i = np.zeros((num_fold_intersections, np.max(num_intersection_folds), 2))
 
 # The angle that each interior fold makes with e1
@@ -330,8 +338,6 @@ for face_index in range(num_faces):
 	for point_index in range(num_face_corner_points[face_index]):
 		print('\tPoint {}: {}'.format(point_index, face_corner_points[face_index][point_index]))
 
-print(face_corner_points)
-
 face_centers = np.zeros((num_faces, 2))
 for face_index in range(num_faces):
 	center = [0.0, 0.0]
@@ -352,7 +358,7 @@ for face_index in range(num_faces):
 # For example, an entry at index 0 of the form `[3, 2, 1]` would indicate that in order to 
 # get from the `fixed_face` (say, the 3rd face) to the 0th face, we would need to cross the 
 # folds at indices 3, 2, and 1 (in that order)
-
+#
 # TODO: find a Hamiltonian cycle - page 233 of "Geometric Folding Algorithms" 
 fold_paths = np.array([
 	[3, filler_index, filler_index, filler_index, filler_index, filler_index, filler_index, filler_index],
@@ -364,19 +370,16 @@ fold_paths = np.array([
 	[3, 0, 1, 2, 4, 7, 6, filler_index],
 	[3, 0, 1, 2, 4, 7, 6, 5]
 ])
-
 assert np.shape(fold_paths) == (num_faces, num_folds)
 
 
 
 
 
-# Reference:
-# https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
-# 
-# Use `m.apply(v)` to apply a rotation matrix to a vector
-# ...
+'''
+Rotations and constraints
 
+'''
 def r1(phi):
 	'''Computes a 3x3 rotation matrix corresponding to a rotation of `phi`
 	radians around the positive x-axis (e1)
@@ -391,83 +394,323 @@ def r3(phi):
 	'''
 	return R.from_euler('z', phi)
 
-def fold_transform(alpha, phi):
+def to_4x4(mat_3x3):
+	last_col = np.zeros((3, 1))
+	last_row = np.zeros((1, 4))
+	last_row[0, -1] = 1
+		
+	mat_4x4 = np.hstack((mat_3x3, last_col))
+	mat_4x4 = np.vstack((mat_4x4, last_row))
+
+	return mat_4x4
+
+def t(b):
+	'''Computes a 4x4 translation matrix
+
+	'''
+	return np.array([
+		[1, 0, 0, b[0]],
+		[0, 1, 0, b[1]],
+		[0, 0, 1, b[2]],
+		[0, 0, 0,   1],
+	])
+
+def get_fold_transform(alpha, phi):
 	'''Computes the transform associated with a rotation of `phi` 
 	radians around a fold that makes an angle `alpha` w.r.t. the 
 	positive x-axis (e1)
 	
 	See equation `2.23` in the text
 
-	'''
-	# When traversing the fold map, always use `p1` and compose rotations
-	# 
-	# If we cross a fold in the "positive" direction, simply apply
-	# the rotation matrix as seen below
-	# 
-	# If we cross a fold in the "negative" direction, add `pi` to `phi`
-	# before constructing the rotation matrix
+	Note that in the text, the "full" fold transformation is actually
+	a 4x4 matrix, where the last column represents a translation
+	
+	X is a point in the reference configuration, S_0
+	x is a point in the current configuration, S_t
 
-	return r3(alpha) * r1(phi) * r3(alpha).inv()
+	The mapping from X -> x involves a series of "fold transformations,"
+	based on the folds crossed by a path connecting X to x
+
+	Each fold transformation is represented by a 4x4 matrix, which itself
+	is the composition of several transformations:
+
+	1. Translate X by -b
+	2. Rotate X by the inverse of R3(α): this aligns the fold vector 
+	   to e1 (the positive x-axis)
+	3. Rotate X by R1(φ): this performs the "actual" rotation induced
+	   by the crease
+	4. Rotate X by R3(α) to undo the rotation done in step (2)
+	5. Translate X by b to undo the translation done in step (1)
+
+	In the description above, `b` is taken to be the starting reference
+	point of the fold in question, i.e. an element from `p1`
+	
+	Note that in the paper, this is all done with a single 4x4 matrix,
+	but since SciPy's rotations are represented as 3x3 matrices, we 
+	break it up into a number of sub-steps
+
+	Also note that care should be taken when accumulating fold transforms
+	about the way in which the desired fold path crosses each of its
+	constituent folds: a fold can be crossed in either the "positive" 
+	or "negative" direction
+
+	If we cross a fold in the "positive" direction, we simply apply
+	the rotations as described above
+	
+	If we cross a fold in the "negative" direction, we add `pi` to φ
+	before constructing the rotation matrix
+
+	'''	
+
+	# Note that: r3(-alpha) = r3(alpha).inv()
+	return (r3(alpha) * r1(phi) * r3(-alpha)).as_matrix()
+
+def get_kinematic_constraint(corner_angles, fold_angles):
+	'''Constructs the kinematic constraint matrix, which should always be
+	equal to the identity matrix
+	
+	Args:
+		corner_angles: a 1D array containing all of the face corner angles
+			around this interior fold intersection
+
+		fold_angles: a 1D array containing all of the desired fold angles
+			at each of the folds emanating from this interior fold intersection
+			(note that these should be sorted in CCW order)
+
+	'''
+	constraint_matrix = R.identity()
+
+	for alpha, theta in zip(corner_angles, fold_angles):
+		constraint_matrix = constraint_matrix * r1(theta) * r3(alpha)
+
+	return constraint_matrix
+
+#def get_folding_transformation_matrix(alpha, phi, b):
+
+
 
 print('Testing R1 (rotation around x-axis) with pi/8...')
 r1_test = r1(math.pi * 0.125)
 print(r1_test.as_matrix())
+# Should be:
+#
+# [[ 1.          0.          0.        ]
+#  [ 0.          0.92387953 -0.38268343]
+#  [ 0.          0.38268343  0.92387953]]
 
 print('Testing R3 (rotation around z-axis) with pi/8...')
 r3_test = r3(math.pi * 0.125)
 print(r3_test.as_matrix())
+# Should be:
+# 
+# [[ 0.92387953 -0.38268343  0.        ]
+#  [ 0.38268343  0.92387953  0.        ]
+#  [ 0.          0.          1.        ]]
+
+print(to_4x4(r3_test.as_matrix()))
 
 alpha = math.pi / 4
 phi = math.pi / 8
 print(f'Testing composite transform with: `alpha` = {alpha}, `phi` = {phi}')
-comp_test = fold_transform(alpha, phi)
+comp_test = get_fold_transform(alpha, phi)
 print(comp_test.as_matrix())
-
-# Should be (roughly)
+# Should be:
 #
-# [[  0.9619, 0.0380,  0.2705 ]]
-# [[  0.0380, 0.9619, -0.2705 ]]
-# [[ -0.2705, 0.2705,  0.9238 ]]
+# [[ 0.96193977  0.03806023  0.27059805]
+#  [ 0.03806023  0.96193977 -0.27059805]
+#  [-0.27059805  0.27059805  0.92387953]]
 
 
 
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import matplotlib.colors as colors
+
+def plot_reference_configuration():
+	# Create the plot and set the size
+	fig = plt.figure()
+	ax = Axes3D(fig)
+	size = 100
+	ax.set_xlim3d(0, size)
+	ax.set_ylim3d(0, size)
+	ax.set_zlim3d(0, size)
+
+	for face_index in range(num_faces):
+		# Grab all of the 2D corner points that form this face
+		points_2d = face_corner_points[face_index][:num_face_corner_points[face_index]]
+		z_coords = np.zeros((np.shape(points_2d)[0], 1))
+
+		# "Expand" the 2D coordinates into 3D by adding zeros 
+		points_3d = np.hstack((points_2d, z_coords))
+
+		# Draw polygon and center 
+		poly = Poly3DCollection([points_3d + [size * 0.5, size * 0.5, 0]])
+		poly.set_edgecolor('k')
+
+		ax.add_collection3d(poly)
+
+#plot_reference_configuration()
+
+def plot_custom_configuration(fold_angles):
+
+	if len(fold_angles) != num_folds:
+		raise Error("Invalid number of fold angles")
+
+	# Create the plot and set the size
+	fig = plt.figure()
+	ax = Axes3D(fig)
+	size = 100
+	ax.set_xlim3d(0, size)
+	ax.set_ylim3d(0, size)
+	ax.set_zlim3d(0, size)
+
+	for face_index in range(3):
+
+		# Grab all of the 2D corner points that form this face
+		points_2d = face_corner_points[face_index][:num_face_corner_points[face_index]]
+		z_coords = np.zeros((np.shape(points_2d)[0], 1))
+
+		# "Expand" the 2D coordinates into 3D by adding zeros 
+		points_3d = np.hstack((points_2d, z_coords))
+
+		# Store all of the transformed points
+		transformed = []
+
+
+		for point_index in range(num_face_corner_points[face_index]):
+			#print(f'point: {point}, shape: {point.shape}')
+
+			for fold_index in fold_paths[face_index]:
+
+				if fold_index == filler_index:
+					break
+
+				# TODO: check if fold is crossed in either the positive or negative 
+				# direction and adjust accordingly 
+				# ...
+
+				alpha = fold_ref_angle_wrt_e1[fold_index]
+				phi = fold_angles[fold_index]
+
+				mat = get_fold_transform(alpha, phi)
+				b = p1[fold_index]
+				#print(f'b: {b}')
+				
+				# The "folding transformation matrix"
+				points_3d[point_index][:2] -= b
+				points_3d[point_index] = mat.apply(points_3d[point_index])[0]
+				points_3d[point_index][:2] += b
+
+			#transformed.append(point)
 
 
 
+		#print(points_3d)
+
+		poly = Poly3DCollection([points_3d + [size * 0.5, size * 0.5, 0]])
+		poly.set_edgecolor('k')
+		poly.set_facecolor(np.random.rand(3))
+		poly.set_alpha(0.5)
+
+		ax.add_collection3d(poly)
 
 
+# Should be 8 values (8 unique folds):
+#
+# M
+# V
+# M
+# V
+# V
+# M
+# V
+# M
+#
+# Again, M folds are negative, V folds are positive
+# 
+# For this crease pattern:
+# 
+# 	All M folds should achieve a fold angle of -90 degrees
+# 	All V folds should achieve a fold angle of 180 degrees
+#
+custom_fold_angles = np.array([
+	-math.pi * 0.125,
+	 math.pi * 0.125,
+	-math.pi * 0.125,
+	 math.pi * 0.125,
+	 math.pi * 0.125,
+	-math.pi * 0.125,
+	 math.pi * 0.125,
+	-math.pi * 0.125
+])
 
+# V fold along horizontal crease, side-to-side
+custom_fold_angles = np.array([
+	 0, 
+	 0, 
+	 0,
+	 math.pi * 0.5,
+	 math.pi * 0.5,
+	 0, 
+	 0, 
+	 0
+])
 
+# Final configuration
+custom_fold_angles = np.array([
+	 -math.pi * 0.5, 
+	  math.pi, 
+	  0, 
+	  0, 
+	  0, 
+	  0, 
+	  0,
+	  0
+
+	 # -math.pi * 0.5, 
+	 #  math.pi, 
+	 # -math.pi * 0.5,
+	 #  math.pi,
+	 #  math.pi,
+	 # -math.pi * 0.5, 
+	 #  math.pi, 
+	 # -math.pi * 0.5
+])
+#custom_fold_angles = [0.0 * 0.95 for theta in custom_fold_angles]
+
+plot_custom_configuration(custom_fold_angles)
 '''
 Plotting
 
 '''
-colors = np.random.rand(len(fold_vector_points), 3)
+# colors = np.random.rand(len(fold_vector_points), 3)
 
-line_segments = [[a, b] for a, b in zip(p1, p2)]
-line_segment_midpoints = [(a + b) * 0.5 for a, b in zip(p1, p2) ]
+# line_segments = [[a, b] for a, b in zip(p1, p2)]
+# line_segment_midpoints = [(a + b) * 0.5 for a, b in zip(p1, p2) ]
 
-line_collection = collections.LineCollection(line_segments, colors=colors, linewidths=1)
-fig, ax = plt.subplots()
-ax.add_collection(line_collection)
-ax.scatter(reference_points[:, 0], reference_points[:, 1])
+# line_collection = collections.LineCollection(line_segments, colors=colors, linewidths=1)
+# fig, ax = plt.subplots()
+# ax.add_collection(line_collection)
+# ax.scatter(reference_points[:, 0], reference_points[:, 1])
 
-for i, (x, y) in enumerate(line_segment_midpoints):
-	label = 'F{}'.format(i)
-	ax.annotate(label, (x, y), textcoords="offset points", xytext=(5, 10), ha='center', fontweight='bold')
+# for i, (x, y) in enumerate(line_segment_midpoints):
+# 	label = 'F{}'.format(i)
+# 	ax.annotate(label, (x, y), textcoords="offset points", xytext=(5, 10), ha='center', fontweight='bold')
 
-for i, (x, y) in enumerate(reference_points):
-	label = 'v{}'.format(i)
-	ax.annotate(label, (x, y), textcoords="offset points", xytext=(0, 10), ha='center', fontsize='x-small')
+# for i, (x, y) in enumerate(reference_points):
+# 	label = 'v{}'.format(i)
+# 	ax.annotate(label, (x, y), textcoords="offset points", xytext=(0, 10), ha='center', fontsize='x-small')
 
-for i, (x, y) in enumerate(face_centers):
-	label = 'face {}'.format(i)
-	ax.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize='x-small')
+# for i, (x, y) in enumerate(face_centers):
+# 	label = 'face {}'.format(i)
+# 	ax.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize='x-small')
 
-ax.autoscale()
-ax.margins(0.1)
+# ax.autoscale()
+# ax.margins(0.1)
 
-plt.show()
+plt.show(block=False)
+input("Hit Enter To Close")
+plt.close()
 
 
 
@@ -506,7 +749,8 @@ max_fold_angle_correction = math.radians(5.0)
 # Number of increments
 num_increments = 50
 
-# Initialize matrix that contains each fold angle change for every increment 
+# The expected fold angle change per increment, in order to reach the desired 
+# configuration
 fold_angle_change_per_increment = np.zeros((np.shape(fold_vector_points)[0], num_increments))
 
 # Reference angle for filling fold angle change per increment matrix
