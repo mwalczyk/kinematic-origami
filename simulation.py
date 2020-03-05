@@ -404,7 +404,7 @@ def to_4x4(mat_3x3):
 
 	return mat_4x4
 
-def t(b):
+def translation(b):
 	'''Computes a 4x4 translation matrix
 
 	'''
@@ -415,7 +415,7 @@ def t(b):
 		[0, 0, 0,   1],
 	])
 
-def get_fold_transform(alpha, phi):
+def get_fold_transform(alpha, phi, b):
 	'''Computes the transform associated with a rotation of `phi` 
 	radians around a fold that makes an angle `alpha` w.r.t. the 
 	positive x-axis (e1)
@@ -485,42 +485,38 @@ def get_kinematic_constraint(corner_angles, fold_angles):
 
 	return constraint_matrix
 
-#def get_folding_transformation_matrix(alpha, phi, b):
 
+def run_tests():
+	print('Testing R1 (rotation around x-axis) with pi/8...')
+	r1_test = r1(math.pi * 0.125)
+	print(r1_test.as_matrix())
+	# Should be:
+	#
+	# [[ 1.          0.          0.        ]
+	#  [ 0.          0.92387953 -0.38268343]
+	#  [ 0.          0.38268343  0.92387953]]
 
+	print('Testing R3 (rotation around z-axis) with pi/8...')
+	r3_test = r3(math.pi * 0.125)
+	print(r3_test.as_matrix())
+	# Should be:
+	# 
+	# [[ 0.92387953 -0.38268343  0.        ]
+	#  [ 0.38268343  0.92387953  0.        ]
+	#  [ 0.          0.          1.        ]]
 
-print('Testing R1 (rotation around x-axis) with pi/8...')
-r1_test = r1(math.pi * 0.125)
-print(r1_test.as_matrix())
-# Should be:
-#
-# [[ 1.          0.          0.        ]
-#  [ 0.          0.92387953 -0.38268343]
-#  [ 0.          0.38268343  0.92387953]]
+	print(to_4x4(r3_test.as_matrix()))
 
-print('Testing R3 (rotation around z-axis) with pi/8...')
-r3_test = r3(math.pi * 0.125)
-print(r3_test.as_matrix())
-# Should be:
-# 
-# [[ 0.92387953 -0.38268343  0.        ]
-#  [ 0.38268343  0.92387953  0.        ]
-#  [ 0.          0.          1.        ]]
-
-print(to_4x4(r3_test.as_matrix()))
-
-alpha = math.pi / 4
-phi = math.pi / 8
-print(f'Testing composite transform with: `alpha` = {alpha}, `phi` = {phi}')
-comp_test = get_fold_transform(alpha, phi)
-print(comp_test.as_matrix())
-# Should be:
-#
-# [[ 0.96193977  0.03806023  0.27059805]
-#  [ 0.03806023  0.96193977 -0.27059805]
-#  [-0.27059805  0.27059805  0.92387953]]
-
-
+	alpha = math.pi / 4
+	phi = math.pi / 8
+	print(f'Testing composite transform with: `alpha` = {alpha}, `phi` = {phi}')
+	comp_test = get_fold_transform(alpha, phi)
+	print(comp_test)
+	# Should be:
+	#
+	# [[ 0.96193977  0.03806023  0.27059805]
+	#  [ 0.03806023  0.96193977 -0.27059805]
+	#  [-0.27059805  0.27059805  0.92387953]]
 
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -549,8 +545,6 @@ def plot_reference_configuration():
 
 		ax.add_collection3d(poly)
 
-#plot_reference_configuration()
-
 def plot_custom_configuration(fold_angles):
 
 	if len(fold_angles) != num_folds:
@@ -564,24 +558,25 @@ def plot_custom_configuration(fold_angles):
 	ax.set_ylim3d(0, size)
 	ax.set_zlim3d(0, size)
 
-	for face_index in range(3):
+	for face_index in range(num_faces):
 
 		# Grab all of the 2D corner points that form this face
 		points_2d = face_corner_points[face_index][:num_face_corner_points[face_index]]
-		z_coords = np.zeros((np.shape(points_2d)[0], 1))
+		extra_0 = np.zeros((np.shape(points_2d)[0], 1))
+		extra_1 = np.ones((np.shape(points_2d)[0], 1))
 
-		# "Expand" the 2D coordinates into 3D by adding zeros 
-		points_3d = np.hstack((points_2d, z_coords))
-
-		# Store all of the transformed points
-		transformed = []
-
+		# "Expand" the 2D coordinates into 4D by adding zeros and ones
+		points_3d = np.hstack((points_2d, extra_0))
+		points_4d = np.hstack((points_3d, extra_1))
 
 		for point_index in range(num_face_corner_points[face_index]):
-			#print(f'point: {point}, shape: {point.shape}')
+
+			# Create a 4x4 identity matrix
+			composite = np.eye(4, 4)
 
 			for fold_index in fold_paths[face_index]:
 
+				# There are no more "actual" folds along this path, so terminate
 				if fold_index == filler_index:
 					break
 
@@ -592,22 +587,31 @@ def plot_custom_configuration(fold_angles):
 				alpha = fold_ref_angle_wrt_e1[fold_index]
 				phi = fold_angles[fold_index]
 
-				mat = get_fold_transform(alpha, phi)
+				rotation = get_fold_transform(alpha, phi)[0]
+				rotation = to_4x4(rotation)
+
+				# `b` is the starting reference point along this fold - note that
+				# we convert `b` to a 3-element vector with z implicitly set to 0
+				# before continuing
 				b = p1[fold_index]
-				#print(f'b: {b}')
-				
-				# The "folding transformation matrix"
-				points_3d[point_index][:2] -= b
-				points_3d[point_index] = mat.apply(points_3d[point_index])[0]
-				points_3d[point_index][:2] += b
+				b = np.append(b, 0.0)
 
-			#transformed.append(point)
+				# Calculate the two transformation matrices associated with `b`
+				t_inv = translation(-b)
+				t = translation(b)
 
+				# Calculate the fold transformation matrix associated with this fold,
+				# which itself is the composite of 2 translation matrices and 3 
+				# rotation matrices
+				fold_transformation = np.matmul(t, np.matmul(rotation, t_inv))
 
+				# Accumulate transformations
+				composite = np.matmul(composite, fold_transformation)
 
-		#print(points_3d)
+			# Transform this corner point by the composite matrix
+			points_4d[point_index] = np.dot(composite, points_4d[point_index])
 
-		poly = Poly3DCollection([points_3d + [size * 0.5, size * 0.5, 0]])
+		poly = Poly3DCollection([points_4d[:,:3] + [size * 0.5, size * 0.5, 0]])
 		poly.set_edgecolor('k')
 		poly.set_facecolor(np.random.rand(3))
 		poly.set_alpha(0.5)
@@ -658,25 +662,25 @@ custom_fold_angles = np.array([
 
 # Final configuration
 custom_fold_angles = np.array([
+	 # -math.pi * 0.5, 
+	 #  math.pi * 0.95, 
+	 # -math.pi * 0.5, 
+	 #  0, 
+	 #  math.pi * 0.95, 
+	 #  0, 
+	 #  0,
+	 #  0
+
 	 -math.pi * 0.5, 
 	  math.pi, 
-	  0, 
-	  0, 
-	  0, 
-	  0, 
-	  0,
-	  0
-
-	 # -math.pi * 0.5, 
-	 #  math.pi, 
-	 # -math.pi * 0.5,
-	 #  math.pi,
-	 #  math.pi,
-	 # -math.pi * 0.5, 
-	 #  math.pi, 
-	 # -math.pi * 0.5
+	 -math.pi * 0.5,
+	  math.pi,
+	  math.pi,
+	 -math.pi * 0.5, 
+	  math.pi, 
+	 -math.pi * 0.5
 ])
-#custom_fold_angles = [0.0 * 0.95 for theta in custom_fold_angles]
+custom_fold_angles = [theta * 0.95 for theta in custom_fold_angles]
 
 plot_custom_configuration(custom_fold_angles)
 '''
