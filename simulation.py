@@ -1,6 +1,12 @@
-import math
 import matplotlib.pyplot as plt
 from matplotlib import collections
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import matplotlib.colors as colors
+import matplotlib.animation as animation
+from matplotlib.widgets import Slider
+
+import math
 import numpy as np
 import pylab as pl
 from scipy.spatial.transform import Rotation as R
@@ -10,10 +16,11 @@ flip_y = False
 filler_index = -1
 
 
-'''
-Provided data
-
-'''
+#####################################################################################
+#
+# Provided data
+#
+#####################################################################################
 # Coordinates of all of the points in the reference (starting)
 # configuration: each of these should lie in span(e1, e2), i.e.
 # on the xy-plane
@@ -155,12 +162,11 @@ fold_angle_initial_value = np.array([
 
 
 
-
-
-'''
-Calculated data
-
-'''
+#####################################################################################
+#
+# Calculated data
+#
+#####################################################################################
 
 # The total number of reference points (i.e. vertices)
 num_reference_ponts = np.shape(reference_points)[0]
@@ -178,28 +184,12 @@ assert len(fold_angle_upper_bound) == num_folds
 assert len(fold_angle_lower_bound) == num_folds 
 assert len(fold_angle_initial_value) == num_folds 
 
-# TODO: for each interior fold intersection, calculate the number of incident folds
-# at this intersection - in the original Matlab code, this would correspond to the 
-# number of non-zero entries in each row of the `intersection_fold_indices` matrix
-# (the index `0` is used to right-fill rows so that they are all the same length)
-#
-# However, things are a bit complicated, since Python uses 0-based indexing - we 
-# can't simply use `np.nonzero(...)`
-#
-# Additionally, entries in the `intersection_fold_indices` matrix are differentiated
-# by their sign (positive or negative), and since zero can't be negative, we again 
-# run into issues here...
-# 
-# For now, we just hard-code the array below
-for i in range(num_fold_intersections):
-	pass
+# The number of folds emanating from each interior fold intersection
+num_intersection_folds = np.zeros(num_fold_intersections, dtype=np.int8)
 
-# The number of folds associated with each interior fold intersection
-#
-# TODO
-num_intersection_folds = np.array([
-	8 
-], dtype=np.int8)
+for i in range(num_fold_intersections):
+	count = np.count_nonzero(intersection_fold_indices[i] != filler_index)
+	num_intersection_folds[i] = count
 
 # The starting points of each fold vector
 p1 = np.array([reference_points[i] for i, _ in fold_vector_points])
@@ -209,10 +199,26 @@ assert p1.shape == (num_folds, 2)
 p2 = np.array([reference_points[j] for _, j in fold_vector_points])
 assert p2.shape == (num_folds, 2)
 
+# A direction vector along each fold (not necessarily oriented inwards or outwards)
 fold_vector = p2 - p1
 assert fold_vector.shape == (num_folds, 2)
 
+# The angle that each fold vector makes w.r.t. the positive x-axis
 fold_ref_angle_wrt_e1 = np.zeros((num_folds, 1))
+
+def complete_acos(x, y):
+	'''Given the 2D coordinates `x` and `y` corresponding to a *normalized*
+	direction vector, calculate the angle that <xy> makes with the positive
+	x-axis, [0..360]
+
+	This is in contrast to `math.acos(...)` which always returns angles in 
+	the range [0..180]
+
+	'''
+	if y >= 0.0: 
+		return math.acos(x)
+	
+	return 2.0 * math.pi - math.acos(x)
 
 for i, v in enumerate(fold_vector):
 	# Extract the xy-coordinates of this vector and calculate its length (L2 norm)
@@ -236,11 +242,17 @@ for i, v in enumerate(fold_vector):
 # Indices:
 # i -> index of the interior fold intersection 
 # j -> index of the `j`th fold surrounding the `i`th interior fold intersection
-# k -> 0 or 1, the x or y-coordinate
+# k -> index of the coordinate (x or y): thus, `k` should always be 0 or 1
 # 
-# TODO: the fold vectors should stored in CCW order...
+# When indexing into the second dimension of this array, `j`, one should always use a 
+# loop like:
+# 
+# 	for j in range(num_intersection_folds[i])
+#		...
 #
-# TODO: what if certain interior folds have more (or less) incident folds than others?
+# This is because different interior fold intersections might have different numbers
+# of surrounding folds, so we want to avoid referencing any "extra" / "filler" folds
+# that implicitly "pad" the `i`th interior fold intersection
 fold_direction_i = np.zeros((num_fold_intersections, np.max(num_intersection_folds), 2))
 
 # The angle that each interior fold makes with e1
@@ -248,6 +260,7 @@ fold_ref_angle_wrt_e1_i = np.zeros((num_fold_intersections, np.max(num_intersect
 
 for i in range(num_fold_intersections):
 
+	# See notes above...
 	for j in range(num_intersection_folds[i]):
 
 		k = intersection_fold_indices[i][j]
@@ -268,8 +281,18 @@ for i in range(num_fold_intersections):
 		else:
 			fold_ref_angle_wrt_e1_i[i][j] = 2.0 * math.pi - math.acos(x / norm_of_v)
 
-for fold_index, theta in zip(intersection_fold_indices[0], fold_ref_angle_wrt_e1_i[0]):
-	print("Fold {}: {} degrees w.r.t. +x-axis".format(fold_index, math.degrees(theta)))
+for i in range(num_fold_intersections):
+
+	print(f'Interior fold intersection #{i} angles w.r.t. +x-axis:')
+
+	for j in range(num_intersection_folds[i]):
+		# Retrieve the *global* fold index of the fold that corresponds to the `j`th fold
+		# emanating from the `i`th interior fold intersection
+		global_fold_index = intersection_fold_indices[i][j]
+		start_index, end_index = fold_vector_points[global_fold_index]
+		theta = fold_ref_angle_wrt_e1_i[i][j]
+
+		print(f'\tFold #{j} (corresponding to fold index {global_fold_index}, with reference point indices [{start_index}-{end_index}]) forms angle {math.degrees(theta)} w.r.t. +x-axis')
 
 # The face corner angles surrounding each interior fold intersection
 #
@@ -290,18 +313,34 @@ for fold_index, theta in zip(intersection_fold_indices[0], fold_ref_angle_wrt_e1
 # 			face_corner_angles[i][j] = fold_ref_angle_wrt_e1_i[i][j + 1] - fold_ref_angle_wrt_e1_i[i][j]
 
 face_corner_angles = np.array([
+	# Corner angles surrounding interior fold intersection #0
 	[math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4]
+
+	# Corner angles surrounding interior fold intersection #1
+	# ...
+
+	# Corner angles surrounding interior fold intersection #2
+	# ...
 ])
 
-for i, angle in enumerate(face_corner_angles[0]):
-	print(f'fold {intersection_fold_indices[0][i]}: angle: {math.degrees(angle)}')
+for i in range(num_fold_intersections):
 
-# The corner points of each face (facet)
+	print(f'Interior fold intersection #{i} corner angles:')
+
+	for j in range(num_intersection_folds[i]):
+		# Retrieve the *global* fold index of the fold that corresponds to the `j`th fold
+		# emanating from the `i`th interior fold intersection
+		global_fold_index = intersection_fold_indices[i][j]
+		theta = face_corner_angles[i][j]
+
+		print(f'\tCorner angle #{j} (corresponding to fold index {global_fold_index}) has angle: {math.degrees(theta)}')
+
+# The corner points of each polygonal face, which may or may not be triangular
 #
 # Indices:
 # i -> index of the face
 # j -> index of the `j`th corner point bounding the `i`th face
-# k -> 0 or 1, the x or y-coordinate of the corner point
+# k -> index of the coordinate (x or y): thus, `k` should always be 0 or 1
 #
 # The maximum number of boundary folds for a given face is dictated by the 
 # size of the 2nd dimension of the `face_boundary` array, which will be 
@@ -369,6 +408,9 @@ for face_index in range(num_faces):
 # For example, an entry at index 0 of the form `[3, 2, 1]` would indicate that in order to 
 # get from the `fixed_face` (say, the 3rd face) to the 0th face, we would need to cross the 
 # folds at indices 3, 2, and 1 (in that order)
+# 
+# Note that these are *global* fold indices (not indices in reference to any particular interior  
+# fold intersection)
 #
 # TODO: find a Hamiltonian cycle - page 233 of "Geometric Folding Algorithms" 
 fold_paths = np.array([
@@ -387,10 +429,11 @@ assert np.shape(fold_paths) == (num_faces, num_folds)
 
 
 
-'''
-Rotations and constraints
-
-'''
+#####################################################################################
+#
+# Rotations, constraints, and other helper functions
+#
+#####################################################################################
 def r1(phi):
 	'''Computes a 3x3 rotation matrix corresponding to a rotation of `phi`
 	radians around the positive x-axis (e1)
@@ -419,15 +462,15 @@ def to_4x4(mat_3x3):
 
 	return mat_4x4
 
-def translation(b):
-	'''Computes a 4x4 translation matrix
+def translation(vector):
+	'''Computes a 4x4 translation matrix along `vector`
 
 	'''
 	return np.array([
-		[1, 0, 0, b[0]],
-		[0, 1, 0, b[1]],
-		[0, 0, 1, b[2]],
-		[0, 0, 0,   1],
+		[1, 0, 0, vector[0]],
+		[0, 1, 0, vector[1]],
+		[0, 0, 1, vector[2]],
+		[0, 0, 0, 1],
 	])
 
 def get_fold_transform(alpha, phi, b):
@@ -511,14 +554,6 @@ def get_kinematic_constraint(corner_angles, fold_angles):
 
 	return constraint_matrix
 
-# [[-4.48073616e-01 -8.93996664e-01  3.61468117e-17]
-#  [ 8.93996664e-01 -4.48073616e-01 -1.52791725e-16]
-#  [ 1.52791725e-16 -3.61468117e-17  1.00000000e+00]]
-
-# [[-4.48073616e-01 -8.93996664e-01  2.70436180e-16]
-#  [ 8.93996664e-01 -4.48073616e-01 -4.84781459e-16]
-#  [ 5.54568325e-16  2.45512614e-17  1.00000000e+00]]
-
 def build_face_map(fold_angles):
 	face_map = np.zeros((num_faces, 4, 4))
 
@@ -587,11 +622,6 @@ def run_tests():
 	#  [ 0.03806023  0.96193977 -0.27059805]
 	#  [-0.27059805  0.27059805  0.92387953]]
 
-from mpl_toolkits.mplot3d import Axes3D
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import matplotlib.colors as colors
-import matplotlib.animation as animation
-from matplotlib.widgets import Slider
 
 # Create the plot and set the size
 fig3d = plt.figure()
@@ -654,40 +684,41 @@ def plot_custom_configuration(fold_angles):
 
 		ax3d.add_collection3d(poly)
 
-# Should be 8 values (8 unique folds):
-#
-# M
-# V
-# M
-# V
-# V
-# M
-# V
-# M
-#
-# Again:
-# 
-# M fold angles are negative (-)
-# V fold angles are positive (+)
-# 
-# For this crease pattern:
-# 
-# 	All M folds should achieve a fold angle of -90 degrees
-# 	All V folds should achieve a fold angle of 180 degrees
-#
-# Final configuration:
-custom_fold_angles = np.array([
-	 -math.pi * 0.5, 
-	  math.pi, 
-	 -math.pi * 0.5,
-	  math.pi,			# Horizontal fold (index #3)
-	  math.pi,			# Horizontal fold (index #4)
-	 -math.pi * 0.5, 
-	  math.pi, 
-	 -math.pi * 0.5
-])
+def test_plot_custom_configuration():
+	# Should be 8 values (8 unique folds):
+	#
+	# M
+	# V
+	# M
+	# V
+	# V
+	# M
+	# V
+	# M
+	#
+	# Again:
+	# 
+	# M fold angles are negative (-)
+	# V fold angles are positive (+)
+	# 
+	# For this crease pattern:
+	# 
+	# 	All M folds should achieve a fold angle of -90 degrees
+	# 	All V folds should achieve a fold angle of 180 degrees
+	#
+	# Final configuration:
+	custom_fold_angles = np.array([
+		 -math.pi * 0.5, 
+		  math.pi, 
+		 -math.pi * 0.5,
+		  math.pi,			# Horizontal fold (index #3)
+		  math.pi,			# Horizontal fold (index #4)
+		 -math.pi * 0.5, 
+		  math.pi, 
+		 -math.pi * 0.5
+	])
 
-plot_custom_configuration(custom_fold_angles)
+	plot_custom_configuration(custom_fold_angles)
 
 def test_constraint_matrix():
 	# Sanity check: our reference configuration S_0 should always work!
@@ -747,13 +778,8 @@ def test_constraint_matrix():
 	print(f'Close to identity matrix: { np.allclose(test_constraint, np.eye(3)) }')
 
 
-test_constraint_matrix()
+# test_constraint_matrix()
 
-
-'''
-Plotting
-
-'''
 def plot_crease_pattern():
 	colors = np.random.rand(len(fold_vector_points), 3)
 
@@ -783,15 +809,6 @@ def plot_crease_pattern():
 
 plot_crease_pattern()
 
-ax_ui = plt.axes([0.25, 0.1, 0.65, 0.03])
-slider_percent = Slider(ax_ui, 'Percent', 0.0, 1.0, valinit=0.0)
-
-def update(val):
-    plot_custom_configuration(custom_fold_angles * slider_percent.val)
-    fig3d.canvas.draw_idle()
-
-slider_percent.on_changed(update)
-update(0.0)
 
 
 
@@ -802,10 +819,12 @@ update(0.0)
 
 
 
-'''
-Simulation inputs 
 
-'''
+#####################################################################################
+#
+# Simulation parameters
+#
+#####################################################################################
 # Weight for residuals from rotation constraints
 weight_rotation_constraint = 1
 
@@ -834,12 +853,14 @@ fold_angle_change_per_increment = np.zeros((num_increments, num_folds))
 # Reference angle for filling fold angle change per increment matrix
 reference_fold_angle = math.radians(90.0)
 
-# Fold angle change per increment matrix components
+# Fold angle change per increment: these are essentially the "guess increments" from the text
+#
+# We assume that each fold moves linearly from its initial value to its final (expected) value,
+# which, of course, is not the case, in reality
+# 
+# However, these guess increments will be modified through the procedure outlined in the solver loop
 for i in range(num_increments):
-	# Set the `i`th column of the matrix to the specified array (note that in the
-	# author's code, the array is a column vector...does this matter?)
 	fold_angle_change_per_increment[i] = (reference_fold_angle / num_increments) * np.array([-1, 2, -1, 2, 2, -1, 2, -1])
-#print(fold_angle_change_per_increment)
 
 # Input to determine one of two methods for calculating initial fold angle increment. One uses the previous 
 # Jacobian (corrected; Select 1) and the other one does not (not corrected; Select 2) 
@@ -868,46 +889,88 @@ Solver implementation
 history_fold_angles = np.zeros((num_increments, num_folds))
 fold_angles = fold_angle_initial_value
 
-simulate = True 
+simulate = False 
+
+d_residual_vector = np.zeros((3 * num_fold_intersections + 2 * num_folds, num_folds))
 
 if simulate:
 
-	for increment in range(1):#range(num_increments):
+	for increment in range(num_increments):
+		print(f'Starting increment: {increment}')
 
 		if increment == 0:
-			# The residual vector derivatives don't yet exist, so...
-			fold_angles = fold_angle_initial_value
+			# The residual vector derivatives don't yet exist, so start with the initial values
+			history_fold_angles[increment] = fold_angle_initial_value
 		else:
 			# Calculate the projection of the guess increments for the fold angles
 			# onto the null space of the residual vector derivatives from the previous
 			# configuration
+			delta = np.dot(np.eye(num_folds) - np.matmul(np.linalg.pinv(d_residual_vector), d_residual_vector), fold_angle_change_per_increment[increment])
 
-			#fold_angles = history_fold_angles[i - 1] + (stuff with pseudo-inverse) * fold_angle_change_per_increment[i]
-			pass
+			# Set the new fold angles to the previous fold angles plus the projection of the guess 
+			# increments vector on the null space of the derivatives of the residual vector
+			history_fold_angles[increment] = history_fold_angles[increment - 1] + delta
+			
 
-		for iteration in range(1):# range(max_iterations):
+
+
+
+
+
+
+		for iteration in range(max_iterations):
+
+			print(f'\tIteration: {iteration}')
+
+
 
 			# The dimension of the residual vector is determined by:
 			# 
 			# 3 * num_fold_intersections -> kinematic constraints
 			# 2 * num_folds -> upper and lower bounds of each fold angle
-
 			residual_vector = np.zeros((3 * num_fold_intersections + 2 * num_folds))
 
-			# The author had it this way
+			# Each column `c` of the Jacobian matrix corresponds to the partial deriative of the 
+			# residual vector w.r.t. the `c`th fold angle
 			d_residual_vector = np.zeros((3 * num_fold_intersections + 2 * num_folds, num_folds))
 
 
-			# Calculate the elements of the residual vector
-			# ...
+			# Grab all of the fold angles associated with the folds that emanate from
+			# each of the interior fold intersections - this is needed in order to 
+			# calculate each of the kinematic constraint matrices below
+			intersection_fold_angles = np.zeros((num_fold_intersections, max(num_intersection_folds)))
+			assert np.shape(intersection_fold_angles) == (1, 8)
+
+			for i in range(num_fold_intersections):
+				
+				# In our case, `i` only evaluates to: 0
+
+				for j in range(num_intersection_folds[i]):
+
+					# In our case, `j` evaluates to: 0, 1, 2, 3, 4, 5, 6, 7, 8 
+					# 8 folds total that emanate from the `0`th (and only) interior fold intersection
+
+					intersection_fold_angles[i][j] = history_fold_angles[increment][intersection_fold_indices[i][j]]
+
+
+
+
+
+
+
 
 			# Matrix-type constraints
 			for i in range(num_fold_intersections):
 
-				corner_angles = face_corner_angles[i]
+				# TODO: incorporate `num_intersection_folds[i]` for both of these
+				# TODO: `face_corner_angles` is hard-coded above (for now)
+				i_corner_angles = face_corner_angles[i]
+				i_fold_angles = intersection_fold_angles[i]
+				
 
-				constraint_matrix = get_kinematic_constraint(corner_angles, fold_angles).as_matrix()
-				print(constraint_matrix)
+				# Calculate the constraint matrix
+				constraint_matrix = get_kinematic_constraint(i_corner_angles, i_fold_angles).as_matrix()
+		
 				val_12 = 0.5 * weight_rotation_constraint * math.pow(constraint_matrix[1][2], 2.0)
 				val_20 = 0.5 * weight_rotation_constraint * math.pow(constraint_matrix[2][0], 2.0)
 				val_01 = 0.5 * weight_rotation_constraint * math.pow(constraint_matrix[0][1], 2.0)
@@ -916,23 +979,55 @@ if simulate:
 				residual_vector[i * 3 + 1] = val_20
 				residual_vector[i * 3 + 2] = val_01
 
-				# Calculate residual vector derivatives (Jacobian matrix) using finite differences
-				# ...
-				for j in range(num_folds):
-					# Calculate one column of the Jacobian, i.e. the (partial) derivative of the 
-					# residual vector w.r.t. the `i`th fold angle, theta_ij
-					pass
+				# Calculate the first `3N_I + 2N_F` components of the derivative of the residual vector
+				# w.r.t. each of the fold angles using a central finite difference
+
+				for j in range(num_intersection_folds[i]):
+
+					# In our case, `i` only evaluates to: 0
+					# Only 1 interior fold intersection
+					#
+					# In our case, `j` evaluates to: 0, 1, 2, 3, 4, 5, 6, 7, 8 
+					# 8 folds total that emanate from the `0`th (and only) interior fold intersection
+					#
+					# So, `intersection_fold_indices[i][j]` returns the index of the fold (in the *global* array
+					# that contains ALL of the folds) of the `j`th fold surrounding the `i`th interior fold
+					# intersection...
+
+					forward_step = np.zeros_like(i_fold_angles)
+					forward_step[j] = fin_diff_step
+					forward = get_kinematic_constraint(i_corner_angles, i_fold_angles + forward_step).as_matrix()
+
+					backward_step = np.zeros_like(i_fold_angles)
+					backward_step[j] = -fin_diff_step
+					backward = get_kinematic_constraint(i_corner_angles, i_fold_angles + backward_step).as_matrix()
+
+					# Compute central difference
+					#
+					# Reference: `http://www.math.unl.edu/~s-bbockel1/833-notes/node23.html`
+					d_constraint_matrix = (forward - backward) / (2.0 * fin_diff_step)
+
+					# Update components of the Jacobian related to the fold index of the `j`th fold
+					# surrounding the `i`th interior fold intersection 
+					d_residual_vector[i * 3 + 0][intersection_fold_indices[i][j]] = weight_rotation_constraint * d_constraint_matrix[1][2] * constraint_matrix[1][2]
+					d_residual_vector[i * 3 + 1][intersection_fold_indices[i][j]] = weight_rotation_constraint * d_constraint_matrix[2][0] * constraint_matrix[2][0]
+					d_residual_vector[i * 3 + 2][intersection_fold_indices[i][j]] = weight_rotation_constraint * d_constraint_matrix[0][1] * constraint_matrix[0][1]
+
+
+
 
 			# Lower / upper bound-type constraints
 			for i in range(num_folds):
-				# Put into residual vector, starting at index `3 * num_fold_intersections`
+				# Put into residual vector, starting at index `3 * num_fold_intersections` where
+				# `num_fold_intersections` is the TOTAL number of interior fold intersections across
+				# the entire crease pattern
 				insertion_start = 3 * num_fold_intersections
 
 				# `2.76`
-				val_lower_bound = 0.5 * weight_fold_angle_bounds * max(0.0, -fold_angles[i] + fold_angle_lower_bound[i])
+				val_lower_bound = 0.5 * weight_fold_angle_bounds * max(0.0, -history_fold_angles[increment][i] + fold_angle_lower_bound[i])
 
 				# `2.77`
-				val_upper_bound = 0.5 * weight_fold_angle_bounds * max(0.0,  fold_angles[i] - fold_angle_upper_bound[i])
+				val_upper_bound = 0.5 * weight_fold_angle_bounds * max(0.0,  history_fold_angles[increment][i] - fold_angle_upper_bound[i])
 
 				residual_vector[insertion_start + 2 * i + 0] = val_lower_bound
 				residual_vector[insertion_start + 2 * i + 1] = val_upper_bound
@@ -950,17 +1045,65 @@ if simulate:
 				# 		`c * (2x - 2y)`
 				#
 				# which, in our case, simplifies to the second branch below
-				if fold_angles[i] >= fold_angle_lower_bound[i]:
+				if history_fold_angles[increment][i] >= fold_angle_lower_bound[i]:
 					d_residual_vector[insertion_start + 2 * i + 0][i] = 0.0
 				else:
-					d_residual_vector[insertion_start + 2 * i + 0][i] = -weight_fold_angle_bounds * (-fold_angles[i] + fold_angle_lower_bound[i])
+					d_residual_vector[insertion_start + 2 * i + 0][i] = -weight_fold_angle_bounds * (-history_fold_angles[increment][i] + fold_angle_lower_bound[i])
 			
+				# Equation `2.77` follows
+				if history_fold_angles[increment][i] <= fold_angle_upper_bound[i]:
+					d_residual_vector[insertion_start + 2 * i + 1][i] = 0.0
+				else:
+					d_residual_vector[insertion_start + 2 * i + 1][i] = weight_fold_angle_bounds * (history_fold_angles[increment][i] - fold_angle_upper_bound[i])
 
 
 
 
-#plot_custom_configuration(fold_angle_change_per_increment[:, 0] * 40.0)
 
+
+			# Numpy `norm(...)` defaults to the L2 norm
+			# TODO: replace denominator with `np.shape(residual_vector)`
+			norm_residual_vector = np.linalg.norm(residual_vector) / (3 * num_fold_intersections + 2 * num_folds)
+			
+			if norm_residual_vector < tolerance_residual:
+				break
+			else:
+				# Calculate the fold angle corrections from the Jacobian matrix and the residual vector
+				fold_angle_corrections = np.dot(-np.linalg.pinv(d_residual_vector), residual_vector)
+				assert np.shape(fold_angle_corrections) == (num_folds,)
+
+				# TODO: replace denominator with `np.shape(fold_angle_corrections)`
+				norm_fold_angle_corrections = np.linalg.norm(fold_angle_corrections) / num_folds
+
+				# Don't allow super large corrections
+				if max(fold_angle_corrections) > max_fold_angle_correction:
+					print('Rescaling `fold_angle_corrections: too large...')
+					fold_angle_corrections = fold_angle_corrections * max_fold_angle_correction / max(fold_angle_corrections)
+
+				history_fold_angles[increment] = history_fold_angles[increment] + fold_angle_corrections
+
+				if norm_fold_angle_corrections < tolerance_fold_angle:
+					# Update fold angles
+					break
+
+
+
+# Display the results!
+ax_ui = plt.axes([0.25, 0.1, 0.65, 0.03])
+slider_init = num_increments - 1
+slider_increment = Slider(ax_ui, 'Increment', 0, num_increments - 1, valinit=slider_init)
+
+def update(val):
+	'''A small callback function to redraw the UI whenever the slider changes
+
+	'''
+	plot_custom_configuration(history_fold_angles[int(slider_increment.val)])
+	fig3d.canvas.draw_idle()
+
+slider_increment.on_changed(update)
+update(slider_init)
+
+# Some bullshit to close all Matplotlib windows when you hit "ENTER" 
 plt.show(block=False)
 input("Hit Enter To Close")
 plt.close()
