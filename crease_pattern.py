@@ -128,7 +128,7 @@ class CreasePattern():
 		assert self.p2.shape == (self.num_folds, 2)
 		assert self.fold_vector.shape == (self.num_folds, 2)
 
-		# A 1D array containing the angle that each fold vector makes w.r.t. the positive x-axis
+		# A 1D array containing the angle that each fold vector makes w.r.t. e1
 		self.fold_ref_angle_wrt_e1 = np.zeros(self.num_folds)
 
 		for i, v in enumerate(self.fold_vector):
@@ -136,21 +136,22 @@ class CreasePattern():
 			x, y = v
 			norm_of_v = math.sqrt(x*x + y*y)
 
-			# Formula (2.13): calculate the angle that this vector makes with e1, i.e. the
-			# x-axis
+			# Equation `2.13`
 			# 
-			# Note that we can avoid doing a cross-product (as in the original formula) and
+			# Note: we can avoid doing a cross-product (as in the original formula) and
 			# simply check the sign of the vector's y-coordinate
 			# 
-			# The angles returned by this formula are always positive in the range 0..two pi
+			# The angles returned by this formula are always positive in the range 0..2π
 			if y >= 0.0: 
 				self.fold_ref_angle_wrt_e1[i] = math.acos(x / norm_of_v)
 			else:
 				self.fold_ref_angle_wrt_e1[i] = 2.0 * math.pi - math.acos(x / norm_of_v)
 
 		# A 3D array containing the direction vectors along each of the folds that emanate 
-		# from each of the interior fold intersections: note that the direction vectors 
-		# should always be oriented *outwards* from the interior fold intersection
+		# from each of the interior fold intersections
+		#
+		# The direction vectors should always be oriented *outwards* from the interior fold 
+		# intersection
 		#
 		# Indices:
 		#
