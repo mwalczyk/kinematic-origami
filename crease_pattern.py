@@ -2,6 +2,8 @@ import json
 import math
 import numpy as np
 
+import matrix_utils as mu
+
 class CreasePattern():
 
 	def __init__(self, path_to_json):
@@ -77,6 +79,9 @@ class CreasePattern():
 		# A 1D array that specifies each of the fold angles in the reference configuration
 		self.fold_angle_initial_value = np.array(data['fold_angle_initial_value'])
 
+		# A 1D array that specifies the target fold angles
+		self.fold_angle_target = np.array(data['fold_angle_target'])
+
 		self.compute_properties()
 
 	def compute_properties(self):
@@ -101,9 +106,6 @@ class CreasePattern():
 		assert self.fold_angle_lower_bound.shape == (self.num_folds,) 
 		assert self.fold_angle_initial_value.shape == (self.num_folds,) 
 
-
-
-
 		# A 2D array containing the number of folds emanating from each interior fold intersection
 		self.num_intersection_folds = np.zeros(self.num_fold_intersections, dtype=np.int8)
 
@@ -125,25 +127,8 @@ class CreasePattern():
 		assert self.p2.shape == (self.num_folds, 2)
 		assert self.fold_vector.shape == (self.num_folds, 2)
 
-
-
-
 		# A 1D array containing the angle that each fold vector makes w.r.t. the positive x-axis
 		self.fold_ref_angle_wrt_e1 = np.zeros(self.num_folds)
-
-		def complete_acos(x, y):
-			'''Given the 2D coordinates `x` and `y` corresponding to a *normalized*
-			direction vector, calculate the angle that <xy> makes with the positive
-			x-axis, [0..360]
-
-			This is in contrast to `math.acos(...)` which always returns angles in 
-			the range [0..180]
-
-			'''
-			if y >= 0.0: 
-				return math.acos(x)
-			
-			return 2.0 * math.pi - math.acos(x)
 
 		for i, v in enumerate(self.fold_vector):
 			# Extract the xy-coordinates of this vector and calculate its length (L2 norm)
@@ -289,7 +274,7 @@ class CreasePattern():
 			count = 0
 
 			for j in range(len(self.face_boundary[i])):
-				
+
 				# The index of the `j`th fold that bounds the `i`th face
 				k = self.face_boundary[i][j]
 
@@ -362,8 +347,43 @@ class CreasePattern():
 		])
 		assert self.fold_paths.shape == (self.num_faces, self.num_folds)
 
+	def compute_face_map(self, fold_angles):
+		
+		face_map = np.zeros((self.num_faces, 4, 4))
 
-if __name__== "__main__":
+		for face_index in range(self.num_faces):
+			# Create a 4x4 identity matrix
+			composite = np.eye(4, 4)
 
-	cp = CreasePattern('simple_pattern.json')
+			# Traverse the fold path and accumulate transformation matrices
+			for fold_index in self.fold_paths[face_index]:
+
+				# There are no more "actual" folds along this path, so terminate
+				if fold_index == self.filler_index:
+					break
+
+				# TODO: check if fold is crossed in either the positive or negative 
+				# direction and adjust accordingly 
+				# ...
+
+				alpha = self.fold_ref_angle_wrt_e1[fold_index]
+				phi = fold_angles[fold_index]
+
+				# `b` is the starting reference point along this fold - note that
+				# we convert `b` to a 3-element vector with z implicitly set to 0
+				# before continuing
+				b = self.p1[fold_index]
+				b = np.append(b, 0.0)
+
+				fold_transformation = mu.get_fold_transform(alpha, phi, b)
+
+				# Accumulate transformations
+				composite = np.matmul(composite, fold_transformation)
+
+			face_map[face_index] = composite
+
+		return face_map
+
+if __name__ == "__main__":
+	cp = CreasePattern('patterns/simple.json')
 
