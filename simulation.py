@@ -1,8 +1,9 @@
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import collections
+from matplotlib.cm import ScalarMappable
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import matplotlib.colors as colors
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider
 
@@ -11,8 +12,14 @@ import numpy as np
 import pylab as pl
 from scipy.spatial.transform import Rotation as R
 
+# Hide toolbars (with "save" button, etc.)
+matplotlib.rcParams['toolbar'] = 'None'
+
+# Set the Matplotlib theme
+matplotlib.style.use('ggplot')
+
 np.random.seed(0)
-flip_y = False
+
 filler_index = -1
 
 
@@ -35,12 +42,6 @@ reference_points = np.array([
 	[  0,  20],
 	[ 20,  20]
 ])
-
-# Matlab's y-axis points downwards, so we could flip each of the 
-# reference points here to be consistent with the author
-if flip_y:
-	for point in reference_points:
-		point[1] *= -1.0
 
 # Indices corresponding to each pair of reference points that form
 # the start + end vertices of each fold vector
@@ -625,12 +626,21 @@ def run_tests():
 
 # Create the plot and set the size
 fig3d = plt.figure()
+#fig3d.scene.renderer.use_depth_peeling = 1
+fig3d.canvas.set_window_title('Folded Configuration')
+fig3d.tight_layout(pad=2)
+fig3d.tight_layout(rect=[0,0,.5,0.5]) 
 ax3d = Axes3D(fig3d)
 size = 50
 ax3d.set_xlim3d(0, size)
 ax3d.set_ylim3d(0, size)
 ax3d.set_zlim3d(0, size)
+ax3d.tick_params(axis='both', which='major', labelsize=6)
+ax3d.tick_params(axis='both', which='minor', labelsize=6)
 
+# ax3d.set_xticks([]) 
+# ax3d.set_yticks([]) 
+# ax3d.set_zticks([])
 def plot_reference_configuration():
 	for face_index in range(num_faces):
 		# Grab all of the 2D corner points that form this face
@@ -647,7 +657,9 @@ def plot_reference_configuration():
 		ax3d.add_collection3d(poly)
 
 def plot_custom_configuration(fold_angles):
-	np.random.seed(0)
+	# Matplotlib utility for mapping face indices to colors
+	scalar_color_map = ScalarMappable(norm=matplotlib.cm.colors.Normalize(0, num_faces), 
+									  cmap=plt.get_cmap('plasma')) # or 'autumn', 'winter'
 
 	if len(fold_angles) != num_folds:
 		raise Error("Invalid number of fold angles")
@@ -657,6 +669,9 @@ def plot_custom_configuration(fold_angles):
 	ax3d.collections = []
 
 	face_map = build_face_map(fold_angles)
+
+	# Add all face polygons to one array (so that depth testing works)
+	all_polys = np.zeros((num_faces, np.max(num_face_corner_points), 3))
 
 	for face_index in range(num_faces):
 
@@ -676,13 +691,14 @@ def plot_custom_configuration(fold_angles):
 			# Transform this corner point by the composite matrix
 			points_4d[point_index] = np.dot(composite, points_4d[point_index])
 
-		# Create a polygon collection (drop the w-coordinate)
-		poly = Poly3DCollection([points_4d[:,:3] + [size * 0.5, size * 0.5, 0]])
-		poly.set_edgecolor('k')
-		poly.set_facecolor(np.random.rand(3))
-		poly.set_alpha(0.5)
+		# Add a new polygon (drop the w-coordinate)
+		all_polys[face_index] = points_4d[:,:3] + [size * 0.5, size * 0.5, 0.0]# + [size * 0.5 - face_centers[fixed_face][0], size * 0.5 - face_centers[fixed_face][1], 0]
 
-		ax3d.add_collection3d(poly)
+	poly = Poly3DCollection(all_polys)
+	poly.set_facecolor([scalar_color_map.to_rgba(face_index)[:3] for face_index in range(num_faces)])
+	poly.set_edgecolor('k')
+	poly.set_alpha(0.75)
+	ax3d.add_collection3d(poly)
 
 def test_plot_custom_configuration():
 	# Should be 8 values (8 unique folds):
@@ -788,13 +804,21 @@ def plot_crease_pattern():
 
 	line_collection = collections.LineCollection(line_segments, colors=colors, linewidths=1)
 	fig, ax = plt.subplots()
-	plt.subplots_adjust(left=0.25, bottom=0.25)
+	fig.canvas.set_window_title('Crease Pattern')
+	plt.subplots_adjust(bottom=0.25)
+	ax.tick_params(axis='both', which='major', labelsize=6)
+	ax.tick_params(axis='both', which='minor', labelsize=6)
 	ax.add_collection(line_collection)
-	ax.scatter(reference_points[:, 0], reference_points[:, 1])
+	ax.scatter(reference_points[:, 0], reference_points[:, 1], zorder=2)
+
+	aspect_ratio = 1.0
+	xleft, xright = ax.get_xlim()
+	ybottom, ytop = ax.get_ylim()
+	ax.set_aspect(abs((xright - xleft) / (ybottom - ytop)) * aspect_ratio)
 
 	for i, (x, y) in enumerate(line_segment_midpoints):
 		label = 'F{}'.format(i)
-		ax.annotate(label, (x, y), textcoords="offset points", xytext=(5, 10), ha='center', fontweight='bold')
+		ax.annotate(label, (x, y), textcoords="offset points", xytext=(5, 10), ha='center', fontsize='medium', fontweight='bold')
 
 	for i, (x, y) in enumerate(reference_points):
 		label = 'v{}'.format(i)
@@ -803,9 +827,6 @@ def plot_crease_pattern():
 	for i, (x, y) in enumerate(face_centers):
 		label = 'face {}'.format(i)
 		ax.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize='x-small')
-
-	ax.autoscale()
-	ax.margins(0.1)
 
 plot_crease_pattern()
 
@@ -869,12 +890,6 @@ increment_correction = 1
 # Finite difference step in fold angles for calculation of derivatives
 fin_diff_step = math.radians(2.0)
 
-
-'''
-Solver implementation
-
-'''
-
 # At each increment, two constraints must be satisfied:
 #
 # 1. Kinematic constraints
@@ -886,17 +901,17 @@ Solver implementation
 # 
 # Meanwhile, (2) states that each of the fold angles should not exceed (or drop below) its
 # upper / lower bound, respectively
-history_fold_angles = np.zeros((num_increments, num_folds))
-fold_angles = fold_angle_initial_value
+history_fold_angles = np.zeros((num_increments + 1, num_folds))
 
-simulate = False 
+simulate = True 
 
-d_residual_vector = np.zeros((3 * num_fold_intersections + 2 * num_folds, num_folds))
+d_residual_d_fold_angles = np.zeros((3 * num_fold_intersections + 2 * num_folds, num_folds))
 
 if simulate:
+	print('Starting solver...')
 
-	for increment in range(num_increments):
-		print(f'Starting increment: {increment}')
+	for increment in range(num_increments + 1):
+		print(f'Increment: {increment}')
 
 		if increment == 0:
 			# The residual vector derivatives don't yet exist, so start with the initial values
@@ -905,34 +920,27 @@ if simulate:
 			# Calculate the projection of the guess increments for the fold angles
 			# onto the null space of the residual vector derivatives from the previous
 			# configuration
-			delta = np.dot(np.eye(num_folds) - np.matmul(np.linalg.pinv(d_residual_vector), d_residual_vector), fold_angle_change_per_increment[increment])
+			delta = np.dot(np.eye(num_folds) - np.matmul(np.linalg.pinv(d_residual_d_fold_angles), d_residual_d_fold_angles), fold_angle_change_per_increment[increment - 1])
 
 			# Set the new fold angles to the previous fold angles plus the projection of the guess 
 			# increments vector on the null space of the derivatives of the residual vector
+			# 
+			# Resource: `https://ocw.mit.edu/courses/mathematics/18-06sc-linear-algebra-fall-2011/least-squares-determinants-and-eigenvalues/projections-onto-subspaces/MIT18_06SCF11_Ses2.2sum.pdf`
 			history_fold_angles[increment] = history_fold_angles[increment - 1] + delta
-			
-
-
-
-
-
-
 
 		for iteration in range(max_iterations):
 
 			print(f'\tIteration: {iteration}')
 
-
-
 			# The dimension of the residual vector is determined by:
 			# 
 			# 3 * num_fold_intersections -> kinematic constraints
 			# 2 * num_folds -> upper and lower bounds of each fold angle
-			residual_vector = np.zeros((3 * num_fold_intersections + 2 * num_folds))
+			residual = np.zeros((3 * num_fold_intersections + 2 * num_folds))
 
 			# Each column `c` of the Jacobian matrix corresponds to the partial deriative of the 
 			# residual vector w.r.t. the `c`th fold angle
-			d_residual_vector = np.zeros((3 * num_fold_intersections + 2 * num_folds, num_folds))
+			d_residual_d_fold_angles = np.zeros((3 * num_fold_intersections + 2 * num_folds, num_folds))
 
 
 			# Grab all of the fold angles associated with the folds that emanate from
@@ -952,32 +960,37 @@ if simulate:
 
 					intersection_fold_angles[i][j] = history_fold_angles[increment][intersection_fold_indices[i][j]]
 
-
-
-
-
-
-
-
 			# Matrix-type constraints
 			for i in range(num_fold_intersections):
 
-				# TODO: incorporate `num_intersection_folds[i]` for both of these
-				# TODO: `face_corner_angles` is hard-coded above (for now)
-				i_corner_angles = face_corner_angles[i]
-				i_fold_angles = intersection_fold_angles[i]
-				
+				# Grab the corner angles and fold angles that are relevant to the `i`th 
+				# interior fold intersection
+				i_corner_angles = face_corner_angles[i][:num_intersection_folds[i]]
+				i_fold_angles = intersection_fold_angles[i][:num_intersection_folds[i]]
 
 				# Calculate the constraint matrix
 				constraint_matrix = get_kinematic_constraint(i_corner_angles, i_fold_angles).as_matrix()
-		
+			
+				# Because the constraint matrix is orthogonal (it is a composition of rotations), only 3 of 
+				# its 9 components are independent (i.e., can be chosen freely):
+				#
+				# 		[a b c]
+				#  		[d e f]
+				#  		[g h i]
+				#
+				# The constraints imposed by the elements in the upper triangle of the matrix are equivalent
+				# to those imposed by the elements in the lower triangle of the matrix
+				#
+				# By examining the resulting rotation matrix, we also see that `c` will always be zero
+				# 
+				# So, we choose to examine `b`, `f` and `g`
 				val_12 = 0.5 * weight_rotation_constraint * math.pow(constraint_matrix[1][2], 2.0)
 				val_20 = 0.5 * weight_rotation_constraint * math.pow(constraint_matrix[2][0], 2.0)
 				val_01 = 0.5 * weight_rotation_constraint * math.pow(constraint_matrix[0][1], 2.0)
 
-				residual_vector[i * 3 + 0] = val_12
-				residual_vector[i * 3 + 1] = val_20
-				residual_vector[i * 3 + 2] = val_01
+				residual[i * 3 + 0] = val_12
+				residual[i * 3 + 1] = val_20
+				residual[i * 3 + 2] = val_01
 
 				# Calculate the first `3N_I + 2N_F` components of the derivative of the residual vector
 				# w.r.t. each of the fold angles using a central finite difference
@@ -1009,12 +1022,9 @@ if simulate:
 
 					# Update components of the Jacobian related to the fold index of the `j`th fold
 					# surrounding the `i`th interior fold intersection 
-					d_residual_vector[i * 3 + 0][intersection_fold_indices[i][j]] = weight_rotation_constraint * d_constraint_matrix[1][2] * constraint_matrix[1][2]
-					d_residual_vector[i * 3 + 1][intersection_fold_indices[i][j]] = weight_rotation_constraint * d_constraint_matrix[2][0] * constraint_matrix[2][0]
-					d_residual_vector[i * 3 + 2][intersection_fold_indices[i][j]] = weight_rotation_constraint * d_constraint_matrix[0][1] * constraint_matrix[0][1]
-
-
-
+					d_residual_d_fold_angles[i * 3 + 0][intersection_fold_indices[i][j]] = weight_rotation_constraint * d_constraint_matrix[1][2] * constraint_matrix[1][2]
+					d_residual_d_fold_angles[i * 3 + 1][intersection_fold_indices[i][j]] = weight_rotation_constraint * d_constraint_matrix[2][0] * constraint_matrix[2][0]
+					d_residual_d_fold_angles[i * 3 + 2][intersection_fold_indices[i][j]] = weight_rotation_constraint * d_constraint_matrix[0][1] * constraint_matrix[0][1]
 
 			# Lower / upper bound-type constraints
 			for i in range(num_folds):
@@ -1029,8 +1039,8 @@ if simulate:
 				# `2.77`
 				val_upper_bound = 0.5 * weight_fold_angle_bounds * max(0.0,  history_fold_angles[increment][i] - fold_angle_upper_bound[i])
 
-				residual_vector[insertion_start + 2 * i + 0] = val_lower_bound
-				residual_vector[insertion_start + 2 * i + 1] = val_upper_bound
+				residual[insertion_start + 2 * i + 0] = val_lower_bound
+				residual[insertion_start + 2 * i + 1] = val_upper_bound
 
 				# Equation `2.76` effectively simplies to a function of the form: 
 				# 
@@ -1046,52 +1056,49 @@ if simulate:
 				#
 				# which, in our case, simplifies to the second branch below
 				if history_fold_angles[increment][i] >= fold_angle_lower_bound[i]:
-					d_residual_vector[insertion_start + 2 * i + 0][i] = 0.0
+					d_residual_d_fold_angles[insertion_start + 2 * i + 0][i] = 0.0
 				else:
-					d_residual_vector[insertion_start + 2 * i + 0][i] = -weight_fold_angle_bounds * (-history_fold_angles[increment][i] + fold_angle_lower_bound[i])
+					d_residual_d_fold_angles[insertion_start + 2 * i + 0][i] = -weight_fold_angle_bounds * (-history_fold_angles[increment][i] + fold_angle_lower_bound[i])
 			
 				# Equation `2.77` follows
 				if history_fold_angles[increment][i] <= fold_angle_upper_bound[i]:
-					d_residual_vector[insertion_start + 2 * i + 1][i] = 0.0
+					d_residual_d_fold_angles[insertion_start + 2 * i + 1][i] = 0.0
 				else:
-					d_residual_vector[insertion_start + 2 * i + 1][i] = weight_fold_angle_bounds * (history_fold_angles[increment][i] - fold_angle_upper_bound[i])
-
-
-
-
-
+					d_residual_d_fold_angles[insertion_start + 2 * i + 1][i] = weight_fold_angle_bounds * (history_fold_angles[increment][i] - fold_angle_upper_bound[i])
 
 			# Numpy `norm(...)` defaults to the L2 norm
-			# TODO: replace denominator with `np.shape(residual_vector)`
-			norm_residual_vector = np.linalg.norm(residual_vector) / (3 * num_fold_intersections + 2 * num_folds)
+			norm_residual = np.linalg.norm(residual) / np.shape(residual)[0]
 			
-			if norm_residual_vector < tolerance_residual:
+			if norm_residual < tolerance_residual:
+				print('The L2 norm of the residual vector is less than the tolerance: fold angle corrections are not necessary - continuing...')
 				break
 			else:
 				# Calculate the fold angle corrections from the Jacobian matrix and the residual vector
-				fold_angle_corrections = np.dot(-np.linalg.pinv(d_residual_vector), residual_vector)
+				fold_angle_corrections = np.dot(-np.linalg.pinv(d_residual_d_fold_angles), residual)
 				assert np.shape(fold_angle_corrections) == (num_folds,)
 
-				# TODO: replace denominator with `np.shape(fold_angle_corrections)`
-				norm_fold_angle_corrections = np.linalg.norm(fold_angle_corrections) / num_folds
+				norm_fold_angle_corrections = np.linalg.norm(fold_angle_corrections) / np.shape(fold_angle_corrections)[0]
 
 				# Don't allow super large corrections
 				if max(fold_angle_corrections) > max_fold_angle_correction:
 					print('Rescaling `fold_angle_corrections: too large...')
 					fold_angle_corrections = fold_angle_corrections * max_fold_angle_correction / max(fold_angle_corrections)
 
+				# Apply the fold angle corrections to the current fold angles
 				history_fold_angles[increment] = history_fold_angles[increment] + fold_angle_corrections
 
 				if norm_fold_angle_corrections < tolerance_fold_angle:
-					# Update fold angles
+					print('The L2 norm of the fold angle corrections vector is less than the tolerance: exiting solver')
 					break
 
 
 
 # Display the results!
-ax_ui = plt.axes([0.25, 0.1, 0.65, 0.03])
-slider_init = num_increments - 1
-slider_increment = Slider(ax_ui, 'Increment', 0, num_increments - 1, valinit=slider_init)
+ax_ui = plt.axes([0.25, 0.125, 0.5, 0.03])
+slider_init = num_increments
+slider_increment = Slider(ax_ui, 'Increment', 0, num_increments, valinit=slider_init)
+slider_increment.label.set_size(6)
+slider_increment.valtext.set_size(6)
 
 def update(val):
 	'''A small callback function to redraw the UI whenever the slider changes
