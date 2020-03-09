@@ -49,11 +49,6 @@ def get_fold_transform(alpha, phi, b):
 	radians around a fold that makes an angle `alpha` w.r.t. the 
 	positive x-axis (e1)
 	
-	See equation `2.23` in the text
-
-	Note that in the text, the "full" fold transformation is actually
-	a 4x4 matrix, where the last column represents a translation
-	
 	X is a point in the reference configuration, S_0
 	x is a point in the current configuration, S_t
 
@@ -72,13 +67,9 @@ def get_fold_transform(alpha, phi, b):
 	5. Translate X by b to undo the translation done in step (1)
 
 	In the description above, `b` is taken to be the starting reference
-	point of the fold in question, i.e. an element from `p1`
+	point of the fold in question, i.e. an element from `crease_pattern.p1`
 	
-	Note that in the paper, this is all done with a single 4x4 matrix,
-	but since SciPy's rotations are represented as 3x3 matrices, we 
-	break it up into a number of sub-steps
-
-	Also note that care should be taken when accumulating fold transforms
+	Note that care should be taken when accumulating fold transforms
 	about the way in which the desired fold path crosses each of its
 	constituent folds: a fold can be crossed in either the "positive" 
 	or "negative" direction
@@ -90,31 +81,25 @@ def get_fold_transform(alpha, phi, b):
 	before constructing the rotation matrix
 
 	'''	
-
+	# Equation `2.23`
 	rotation = np.matmul(r3(alpha), np.matmul(r1(phi), r3(-alpha)))
 
-	# Calculate the two transformation matrices associated with `b`
+	# Calculate the two translation matrices associated with `b`
 	t_inv = translation(-b)
 	t = translation(b)
 
-	# Calculate the fold transformation matrix associated with this fold,
-	# which itself is the composite of 2 translation matrices and 3 
-	# rotation matrices
+	# Equation `2.58`
 	fold_transformation = np.matmul(t, np.matmul(rotation, t_inv))
 
 	return fold_transformation
 
-def get_kinematic_constraint(corner_angles, fold_angles):
-	'''Constructs the kinematic constraint matrix - in a "valid" configuration,
-	this matrix should be close (or equal) to the identity matrix
+def get_rotation_constraint_matrix(corner_angles, fold_angles):
+	'''Computes the rotation constraint matrix given the set of corner angles and  
+	fold angles corresponding to a particular interior fold intersection
 	
-	Args:
-		corner_angles: a 1D array containing all of the face corner angles
-			around this interior fold intersection
-
-		fold_angles: a 1D array containing all of the desired fold angles
-			at each of the folds emanating from this interior fold intersection
-
+	In any "valid" configuration, this matrix should be close (or equal) to the 
+	identity matrix
+	
 	'''
 	constraint_matrix = np.eye(4, 4)
 

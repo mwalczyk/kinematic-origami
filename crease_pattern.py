@@ -10,6 +10,8 @@ class CreasePattern():
 		with open(path_to_json) as f:
 			data = json.load(f)
 
+		# Used to pad arrays that would otherwise be "jagged" because of differing
+		# numbers of folds, faces, etc.
 		self.filler_index = -1 
 
 		# A 2D array containing all of the coordinates the points in the 
@@ -24,7 +26,6 @@ class CreasePattern():
 		# For example, an entry [0, 1] would correspond to the fold vector 
 		# pointing *from* point 0 *towards* point 1
 		self.fold_vector_points = np.array(data['fold_vector_points'])
-
 
 		# A 2D array containing the fold indices associated with each interior fold
 		# intersection: these are expected to be in counter-clockwise (CCW) order
@@ -347,9 +348,9 @@ class CreasePattern():
 		])
 		assert self.fold_paths.shape == (self.num_faces, self.num_folds)
 
-	def compute_face_map(self, fold_angles):
+	def compute_folding_map(self, fold_angles):
 		
-		face_map = np.zeros((self.num_faces, 4, 4))
+		folding_map = np.zeros((self.num_faces, 4, 4))
 
 		for face_index in range(self.num_faces):
 			# Create a 4x4 identity matrix
@@ -380,9 +381,9 @@ class CreasePattern():
 				# Accumulate transformations
 				composite = np.matmul(composite, fold_transformation)
 
-			face_map[face_index] = composite
+			folding_map[face_index] = composite
 
-		return face_map
+		return folding_map
 
 if __name__ == "__main__":
 	cp = CreasePattern('patterns/simple.json')

@@ -113,7 +113,7 @@ class Solver:
 					i_fold_angles = intersection_fold_angles[i][:crease_pattern.num_intersection_folds[i]]
 
 					# Calculate the constraint matrix
-					constraint_matrix = mu.get_kinematic_constraint(i_corner_angles, i_fold_angles)
+					constraint_matrix = mu.get_rotation_constraint_matrix(i_corner_angles, i_fold_angles)
 				
 					# Because the constraint matrix is orthogonal (it is a composition of rotations), only 3 of 
 					# its 9 components are independent (i.e., can be chosen freely):
@@ -153,11 +153,11 @@ class Solver:
 
 						forward_step = np.zeros_like(i_fold_angles)
 						forward_step[j] = self.fin_diff_step
-						forward = mu.get_kinematic_constraint(i_corner_angles, i_fold_angles + forward_step)
+						forward = mu.get_rotation_constraint_matrix(i_corner_angles, i_fold_angles + forward_step)
 
 						backward_step = np.zeros_like(i_fold_angles)
 						backward_step[j] = -self.fin_diff_step
-						backward = mu.get_kinematic_constraint(i_corner_angles, i_fold_angles + backward_step)
+						backward = mu.get_rotation_constraint_matrix(i_corner_angles, i_fold_angles + backward_step)
 
 						# Compute central difference
 						#

@@ -32,7 +32,7 @@ def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_na
 	axes_3d.collections = []
 
 	# Compute the face map based on the provided fold angles
-	face_map = crease_pattern.compute_face_map(fold_angles)
+	face_map = crease_pattern.compute_folding_map(fold_angles)
 
 	# Add all face polygons to one array (so that depth testing works)
 	all_polys = np.zeros((crease_pattern.num_faces, np.max(crease_pattern.num_face_corner_points), 3))
