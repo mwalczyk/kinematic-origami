@@ -456,7 +456,8 @@ class CreasePattern():
 			self.fold_paths[i] = path
 			self.sign_fold_paths[i] = sign_path
 
-			print(f'Face {i}: \n{path}\n{sign_path}')
+			if debug:
+				print(f'Face {i}: \n{path}\n{sign_path}')
 
 		# PLACEHOLDER:
 		#
