@@ -2,6 +2,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.widgets import Slider
+from pprint import pprint 
 
 from crease_pattern import CreasePattern
 import matrix_utils as mu
@@ -11,17 +12,15 @@ from solver import Solver
 if __name__ == "__main__":
 	# Initialize the crease pattern and solver
 	increments = 50
-	crease_pattern = CreasePattern('patterns/simple.json')
+	crease_pattern = CreasePattern('patterns/medium.json')
 	solver = Solver()
-
-	# Run the solver
-	history_fold_angles = solver.run(crease_pattern)
 
 	# Hide toolbars (with "save" button, etc.) and set the GUI theme
 	matplotlib.rcParams['toolbar'] = 'None'
 	matplotlib.style.use('ggplot')
 
 	# Create a 3D plot for displaying various folded configurations of the model
+	solve = True
 	size = 50
 	fig_3d = plt.figure()
 	fig_3d.canvas.set_window_title('Folded Configuration')
@@ -41,22 +40,28 @@ if __name__ == "__main__":
 	axes_2d.tick_params(axis='both', which='major', labelsize=6)
 	axes_2d.tick_params(axis='both', which='minor', labelsize=6)
 
-	# Create a separate 2D axes for the GUI elements
-	axes_slider = plt.axes([0.25, 0.125, 0.5, 0.03])
-	slider_init = increments
-	slider_increment = Slider(axes_slider, 'Increment', 0, increments, valinit=slider_init)
-	slider_increment.label.set_size(6)
-	slider_increment.valtext.set_size(6)
+	if solve:
+		# Run the solver
+		history_fold_angles = solver.run(crease_pattern)
 
-	def update(val):
-		'''A small callback function to redraw the UI whenever the slider changes
+		# Create a separate 2D axes for the GUI elements
+		axes_slider = plt.axes([0.25, 0.125, 0.5, 0.03])
+		slider_init = increments
+		slider_increment = Slider(axes_slider, 'Increment', 0, increments, valinit=slider_init)
+		slider_increment.label.set_size(6)
+		slider_increment.valtext.set_size(6)
 
-		'''
-		pu.plot_custom_configuration(axes_3d, crease_pattern, history_fold_angles[int(slider_increment.val)])
-		fig_3d.canvas.draw_idle()
+		def update(val):
+			'''A small callback function to redraw the UI whenever the slider changes
 
-	slider_increment.on_changed(update)
-	update(slider_init)
+			'''
+			pu.plot_custom_configuration(axes_3d, crease_pattern, history_fold_angles[int(slider_increment.val)])
+			fig_3d.canvas.draw_idle()
+
+		slider_increment.on_changed(update)
+		update(slider_init)
+	else:
+		pu.plot_reference_configuration(axes_3d, crease_pattern)
 
 	pu.plot_crease_pattern(axes_2d, crease_pattern)
 

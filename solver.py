@@ -58,8 +58,8 @@ class Solver:
 		fold_angle_change_per_increment = np.tile(crease_pattern.fold_angle_target / float(self.num_increments), (self.num_increments, 1))
 
 		for increment in range(self.num_increments + 1):
-			if verbose:
-				print(f'Increment: {increment}')
+			
+			print(f'Increment: {increment}')
 
 			if increment == 0:
 				# The residual vector derivatives don't yet exist, so start with the initial values
@@ -91,7 +91,7 @@ class Solver:
 				# each of the interior fold intersections - this is needed in order to 
 				# calculate each of the kinematic constraint matrices below
 				intersection_fold_angles = np.zeros((crease_pattern.num_fold_intersections, max(crease_pattern.num_intersection_folds)))
-				assert np.shape(intersection_fold_angles) == (1, 8)
+				#assert np.shape(intersection_fold_angles) == (1, 8)
 
 				for i in range(crease_pattern.num_fold_intersections):
 					for j in range(crease_pattern.num_intersection_folds[i]):

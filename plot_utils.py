@@ -35,7 +35,7 @@ def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_na
 	face_map = crease_pattern.compute_folding_map(fold_angles)
 
 	# Add all face polygons to one array (so that depth testing works)
-	all_polys = np.zeros((crease_pattern.num_faces, np.max(crease_pattern.num_face_corner_points), 3))
+	all_polys = []# np.zeros((crease_pattern.num_faces, np.max(crease_pattern.num_face_corner_points), 3))
 
 	for i in range(crease_pattern.num_faces):
 		# Grab all of the 2D corner points that form this face
@@ -55,7 +55,7 @@ def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_na
 			points_4d[j] = np.dot(composite, points_4d[j])
 
 		# Add a new polygon (drop the w-coordinate)
-		all_polys[i] = points_4d[:,:3] + [size_x * 0.5, size_y * 0.5, 0.0]
+		all_polys.append(points_4d[:,:3] + [size_x * 0.5, size_y * 0.5, 0.0])
 
 	# Construct the actual polygon collection object and configure its draw state
 	poly_collection = Poly3DCollection(all_polys)
@@ -91,13 +91,13 @@ def plot_crease_pattern(axes_2d, crease_pattern, color_map_name='autumn', annota
 
 	if annotate_folds:
 		for i, (x, y) in enumerate(line_segment_midpoints):
-			label = 'fold {}'.format(i)
-			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(5, 10), ha='center', fontsize='medium', fontweight='bold')
+			label = 'f{}'.format(i)
+			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize='x-small', fontweight='bold')
 	if annotate_reference_points:
 		for i, (x, y) in enumerate(crease_pattern.reference_points):
-			label = 'rp {}'.format(i)
-			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 10), ha='center', fontsize='x-small')
+			label = 'rp{}'.format(i)
+			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize='x-small')
 	if annotate_faces:
 		for i, (x, y) in enumerate(crease_pattern.face_centers):
-			label = 'face {}'.format(i)
-			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize='x-small')
+			label = 'face\n{}'.format(i)
+			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize=4)#'x-small')

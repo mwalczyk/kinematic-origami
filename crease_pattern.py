@@ -19,7 +19,7 @@ class CreasePattern():
 		# A 2D array containing all of the coordinates the points in the 
 		# reference (starting) configuration: each of these should lie in 
 		# span(e1, e2), i.e. on the xy-plane
-		self.reference_points = np.array(data['reference_points'])
+		self.reference_points = np.array(data['reference_points'], dtype=np.float)
 
 		# A 2D array containing the indices corresponding to each pair of 
 		# reference points that form the start & end vertices of each fold 
@@ -318,7 +318,31 @@ class CreasePattern():
 
 		# A 2D array containing the center point of each face (for labeling purposes) - note that this is
 		# not required for simulation
-		self.face_centers = np.average(self.face_corner_points, axis=1)
+		self.face_centers = np.zeros((self.num_faces, 2)) 
+
+		# TODO: is there a better way to do this like:
+		# `np.average(self.face_corner_points, axis=1)`
+
+		for i in range(self.num_faces):
+			# Running sum...
+			center = [0.0, 0.0]
+			count = 0
+
+			for j in self.face_boundary[i]:
+
+				if j != self.filler_index:
+					# Get the start and end points of this fold, compute its midpoint,
+					# and accumulate
+					s = self.p1[j]
+					e = self.p2[j]
+					midpoint = (s + e) * 0.5
+					center += midpoint
+					count += 1
+
+			center /= float(count)
+
+			self.face_centers[i] = center
+
 		assert self.face_centers.shape == (self.num_faces, 2)
 
 		# A 2D array containing the indices of the folds crossed by each path connecting the fixed face to 
@@ -350,6 +374,12 @@ class CreasePattern():
 		for i in range(self.num_faces): 
 
 			for fold_index in self.face_boundary[i]:
+
+				# Don't consider boundary folds that are filler indices: again, these exist
+				# so that the second dimension of the `face_boundary` array is the same
+				# across all faces
+				if fold_index == self.filler_index:
+					break
 
 				# Is there another face that shares this same fold?
 				for j in range(self.num_faces):
@@ -457,7 +487,7 @@ class CreasePattern():
 			self.sign_fold_paths[i] = sign_path
 
 			if debug:
-				print(f'Face {i}: \n{path}\n{sign_path}')
+				print(f'Face {i}: \n{path}\n{sign_path}\n')
 
 		# PLACEHOLDER:
 		#
@@ -516,5 +546,5 @@ class CreasePattern():
 		return folding_map
 
 if __name__ == "__main__":
-	cp = CreasePattern('patterns/simple.json')
+	cp = CreasePattern('patterns/medium.json')
 

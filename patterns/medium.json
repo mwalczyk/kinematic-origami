@@ -103,9 +103,9 @@
 		[true,  false, true,  true],
 		[true,  false, true,  true],
 		[true,  false, true,  true],
-		[true,  false, true,  true],
+		[true,  false, true,  true]
 	],
-	"fixed_face": 5,
+	"fixed_face": 8,
 	"fold_angle_upper_bound":[ 
 		3.141592653589793, 
 		3.141592653589793,
