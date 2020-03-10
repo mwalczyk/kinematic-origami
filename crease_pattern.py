@@ -1,6 +1,8 @@
 import json
 import math
 import numpy as np
+from pprint import pprint
+from queue import Queue 
 
 import matrix_utils as mu
 
@@ -67,7 +69,7 @@ class CreasePattern():
 		self.sign_face_boundary = np.array(data['sign_face_boundary'])
 
 		# The index of the face that will remain fixed throughout the simulation
-		self.fixed_face = np.array(data['fixed_face'])
+		self.fixed_face = data['fixed_face']
 
 		# A 1D array that specifies an upper bound on the range of values that each fold
 		# angle can take on
@@ -202,8 +204,8 @@ class CreasePattern():
 			print(f'Interior fold intersection #{i} angles w.r.t. +x-axis:')
 
 			for j in range(self.num_intersection_folds[i]):
-				# Retrieve the *global* fold index of the fold that corresponds to the `j`th fold
-				# emanating from the `i`th interior fold intersection
+				# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
+				# emanating from the i-th interior fold intersection
 				global_fold_index = self.intersection_fold_indices[i][j]
 				start_index, end_index = self.fold_vector_points[global_fold_index]
 				theta = self.fold_ref_angle_wrt_e1_i[i][j]
@@ -211,41 +213,48 @@ class CreasePattern():
 				print(f'\tFold #{j} (corresponding to fold index {global_fold_index}, with reference point indices [{start_index}-{end_index}]) forms angle {math.degrees(theta)} w.r.t. +x-axis')
 
 		# A 2D array containing the face corner angles surrounding each interior fold intersection (in CCW order)
+		self.face_corner_angles = np.zeros((self.num_fold_intersections, max(self.num_intersection_folds)))
+
+		for i in range(self.num_fold_intersections):
+
+			for j in range(self.num_intersection_folds[i]):
+				# If this is the last fold that emanates from the i-th interior fold intersection,
+				# add 2π 
+				# 
+				# Otherwise, the face corner angle is simply the difference between the next
+				# fold angle and the current fold angle
+				if j == self.num_intersection_folds[i] - 1:
+					self.face_corner_angles[i][j] = 2.0 * math.pi + (self.fold_ref_angle_wrt_e1_i[i][0] - self.fold_ref_angle_wrt_e1_i[i][j])
+				else:
+					self.face_corner_angles[i][j] = self.fold_ref_angle_wrt_e1_i[i][j + 1] - self.fold_ref_angle_wrt_e1_i[i][j]
+
+				# Prevent face corner angles from ever being negative or greater than 2π - is there
+				# a better way to do this?
+				if self.face_corner_angles[i][j] >= (2.0 * math.pi):
+					self.face_corner_angles[i][j] -= 2.0 * math.pi
+				elif self.face_corner_angles[i][j] < 0.0:
+					self.face_corner_angles[i][j] += 2.0 * math.pi
+
+		# PLACEHOLDER:
 		#
-		# TODO: bug in the code below...
-		# face_corner_angles = np.zeros((num_fold_intersections, max(num_intersection_folds)))
+		# self.face_corner_angles = np.array([
+		# 	# Corner angles surrounding interior fold intersection #0
+		# 	[math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4]
 
-		# for i in range(num_fold_intersections):
+		# 	# Corner angles surrounding interior fold intersection #1
+		# 	# ...
 
-		# 	for j in range(num_intersection_folds[i]):
-		# 		# If this is the last fold that emanates from the `i`th interior fold intersection, 
-		# 		# 
-		# 		# 
-		# 		# Otherwise, the face corner angle is simply the difference between the next
-		# 		# fold angle and the current fold angle
-		# 		if j == num_intersection_folds[i] - 1:
-		# 			face_corner_angles[i][j] = 2.0 * math.pi + (fold_ref_angle_wrt_e1_i[i][0] - fold_ref_angle_wrt_e1_i[i][j])
-		# 		else:
-		# 			face_corner_angles[i][j] = fold_ref_angle_wrt_e1_i[i][j + 1] - fold_ref_angle_wrt_e1_i[i][j]
-
-		self.face_corner_angles = np.array([
-			# Corner angles surrounding interior fold intersection #0
-			[math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4]
-
-			# Corner angles surrounding interior fold intersection #1
-			# ...
-
-			# Corner angles surrounding interior fold intersection #2
-			# ...
-		])
+		# 	# Corner angles surrounding interior fold intersection #2
+		# 	# ...
+		# ])
 
 		for i in range(self.num_fold_intersections):
 
 			print(f'Interior fold intersection #{i} corner angles:')
 
 			for j in range(self.num_intersection_folds[i]):
-				# Retrieve the *global* fold index of the fold that corresponds to the `j`th fold
-				# emanating from the `i`th interior fold intersection
+				# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
+				# emanating from the i-th interior fold intersection
 				global_fold_index = self.intersection_fold_indices[i][j]
 				theta = self.face_corner_angles[i][j]
 
@@ -277,7 +286,7 @@ class CreasePattern():
 
 			for j in range(len(self.face_boundary[i])):
 
-				# The index of the `j`th fold that bounds the `i`th face
+				# The index of the j-th fold that bounds the i-th face
 				k = self.face_boundary[i][j]
 
 				# Have we reached the end of this face?
@@ -292,7 +301,7 @@ class CreasePattern():
 					count += 1
 				else:
 					# Connect to fold in "negative" direction
-					self.face_corner_points[i][count] = self.p2[k] # This used to be `p2[abs(k)]`, but we aren't using negative indices anymore
+					self.face_corner_points[i][count] = self.p2[k] 
 					count += 1
 					self.face_corner_points[i][count] = self.p1[k]
 					count += 1
@@ -309,67 +318,186 @@ class CreasePattern():
 
 		# A 2D array containing the center point of each face (for labeling purposes) - note that this is
 		# not required for simulation
-		self.face_centers = np.zeros((self.num_faces, 2))
+		self.face_centers = np.average(self.face_corner_points, axis=1)
+		assert self.face_centers.shape == (self.num_faces, 2)
 
-		for i in range(self.num_faces):
-
-			center = [0.0, 0.0]
-
-			# TODO: use `np.sum(...)` or something
-			for j in range(self.num_face_corner_points[i]):
-				center += self.face_corner_points[i][j]
-
-			center /= self.num_face_corner_points[i]
-
-			self.face_centers[i] = center
-
-		# The indices of the folds crossed by each path connecting the fixed face to every other face
+		# A 2D array containing the indices of the folds crossed by each path connecting the fixed face to 
+		# every other face
 		#
 		# Indices:
 		# i -> index of the "target" face
-		# j -> index of the `j`th fold crossed en-route to face `i` from face `fixed_face` 
+		# j -> index of the j-th fold crossed en-route to the i-th from the fixed face 
 		# 
-		# For example, an entry at index 0 of the form `[3, 2, 1]` would indicate that in order to 
-		# get from the `fixed_face` (say, the 3rd face) to the 0th face, we would need to cross the 
+		# For example, an entry at index 0 of the form [3, 2, 1] would indicate that in order to 
+		# get from the fixed face (say, the 3rd face) to the 0-th face, we would need to cross the 
 		# folds at indices 3, 2, and 1 (in that order)
 		# 
 		# Note that these are *global* fold indices (not indices in reference to any particular interior  
 		# fold intersection)
 		#
-		# TODO: find a Hamiltonian cycle - page 233 of "Geometric Folding Algorithms" 
-		self.fold_paths = np.array([
-			[3, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
-			[3, 0, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
-			[3, 0, 1, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
-			[3, 0, 1, 2, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
-			[3, 0, 1, 2, 4, self.filler_index, self.filler_index, self.filler_index],
-			[3, 0, 1, 2, 4, 7, self.filler_index, self.filler_index],
-			[3, 0, 1, 2, 4, 7, 6, self.filler_index],
-			[3, 0, 1, 2, 4, 7, 6, 5]
-		])
+		# NOTE: can this be done via Hamiltonian refinement (see page 233 of "Geometric Folding Algorithms")?
+		debug = False
+		self.fold_paths = np.full((self.num_faces, self.num_folds), self.filler_index, dtype=np.int8)
+		self.sign_fold_paths = np.full((self.num_faces, self.num_folds), True, dtype=np.bool)
+		
+		# Construct a dictionary that maps each face index to all of its neighboring faces
+		#
+		# Each entry in the `set()` will be a tuple, where the first entry is the index
+		# of the neighboring face and the second entry is the index of the fold that is
+		# shared by the two faces
+		face_neighbors = { i: set() for i in range(self.num_faces) }
+
+		for i in range(self.num_faces): 
+
+			for fold_index in self.face_boundary[i]:
+
+				# Is there another face that shares this same fold?
+				for j in range(self.num_faces):
+
+					if i != j and fold_index in self.face_boundary[j]:
+						face_neighbors[i].add((j, fold_index))
+
+		if debug:
+			print('Face neighbors:')
+			pprint(face_neighbors)
+
+		def breadth_first_search(root):
+			'''A helper function for performing a breadth first search from the fold
+			at index `root` to all other reachable folds
+
+			'''
+			frontier = Queue()
+			frontier.put(root)
+
+			# Keep track of where each node "came from" (i.e. its parent in the BFS algorithm)
+			came_from = {}
+			came_from[root] = None
+
+			while not frontier.empty():
+				current = frontier.get()
+
+				# Parse out face indices, ignoring the shared fold indicies (for now)
+				indices_of_neighboring_faces = [neighbor[0] for neighbor in face_neighbors[current]]
+
+				for next in indices_of_neighboring_faces:
+					if next not in came_from:
+						frontier.put(next)
+						came_from[next] = current
+
+			return came_from
+
+		# Create a data structure that maps each face index to a dictionary
+		#
+		# The dictionary contains the results of a breadth first search from 
+		# each face index, outwards
+		#
+		# Entries are of the form:
+		#
+		# i: { a:b, c:d, e:f, ... }
+		#
+		# Which means that during the breadth first search starting at the i-th
+		# face, face "a" came from face "b", face "c" came from face "d", etc.
+		#
+		# We can then use this information below to work backwards from the 
+		# fixed face to the i-th face, constructing a "path" between the two
+		#
+		# However, what we are *actually* interested in is, the indices of the 
+		# folds (and their corresponding signs) crossed along such a path
+		# 
+		# This is where the `face_neighbors` data structure comes in: it helps
+		# us determine the index of the shared fold between any two neighboring
+		# faces
+		came_from = {i: breadth_first_search(i) for i in range(self.num_faces)} 
+
+		if debug:
+			print('Results of BFS:')
+			pprint(came_from)
+
+		for i in range(self.num_faces):
+
+			tree = came_from[i]
+			
+			# We always start at the fixed face and work backwards towards
+			# the i-th face
+			parent = self.fixed_face
+			path = []
+			sign_path = []
+
+			while parent is not None:
+				# The index of the face that the current parent face "came from"
+				child = tree[parent]
+
+				# This should only happen when we reach the i-th face itself
+				# (whose corresponding entry in "came from" is necessarily `None`)
+				if child is None:
+					break
+
+				# Find the index of the shared fold between `parent` and `child`
+				shared_fold = next((neighbor[1] for neighbor in face_neighbors[parent] if neighbor[0] == child), None)
+				if shared_fold is None:
+					raise Error('No shared fold found between faces - this should never happen')
+
+				# Find the index of the shared fold in the parent's list of 
+				# boundary folds: use this index to look up the corresponding
+				# sign of the shared fold at the parent face
+				index = self.face_boundary[parent].tolist().index(shared_fold)
+				sign = not self.sign_face_boundary[parent][index]
+
+				path.append(shared_fold)
+				sign_path.append(sign)
+
+				# Recurse
+				parent = child	
+
+			# Expand each sub-list so that it matches the required length - pad as necessary
+			path = path[:self.num_folds] + [self.filler_index] * (self.num_folds - len(path))
+			sign_path = sign_path[:self.num_folds] + [True] * (self.num_folds - len(sign_path))
+
+			self.fold_paths[i] = path
+			self.sign_fold_paths[i] = sign_path
+
+			print(f'Face {i}: \n{path}\n{sign_path}')
+
+		# PLACEHOLDER:
+		#
+		# self.fold_paths = np.array([
+		# 	[3, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
+		# 	[3, 0, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
+		# 	[3, 0, 1, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
+		# 	[3, 0, 1, 2, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
+		# 	[3, 0, 1, 2, 4, self.filler_index, self.filler_index, self.filler_index],
+		# 	[3, 0, 1, 2, 4, 7, self.filler_index, self.filler_index],
+		# 	[3, 0, 1, 2, 4, 7, 6, self.filler_index],
+		# 	[3, 0, 1, 2, 4, 7, 6, 5]
+		# ])
 		assert self.fold_paths.shape == (self.num_faces, self.num_folds)
 
 	def compute_folding_map(self, fold_angles):
-		
+		'''Computes a folding map: the i-th element of the folding map is a 4x4 transformation 
+		matrix that maps a point in the fixed face to a target point in the i-th face, taking 
+		into account all of the fold angles, etc. that you would encounter on such a path
+
+		'''
 		folding_map = np.zeros((self.num_faces, 4, 4))
 
 		for face_index in range(self.num_faces):
+
 			# Create a 4x4 identity matrix
 			composite = np.eye(4, 4)
 
 			# Traverse the fold path and accumulate transformation matrices
-			for fold_index in self.fold_paths[face_index]:
+			for fold_index, fold_sign in zip(self.fold_paths[face_index], self.sign_fold_paths[face_index]):
 
 				# There are no more "actual" folds along this path, so terminate
 				if fold_index == self.filler_index:
 					break
 
-				# TODO: check if fold is crossed in either the positive or negative 
-				# direction and adjust accordingly 
-				# ...
-
 				alpha = self.fold_ref_angle_wrt_e1[fold_index]
 				phi = fold_angles[fold_index]
+
+				# If the path crosses this fold in the "negative" direction, add π 
+				if not fold_sign:
+					alpha += math.pi
 
 				# `b` is the starting reference point along this fold - note that
 				# we convert `b` to a 3-element vector with z implicitly set to 0
