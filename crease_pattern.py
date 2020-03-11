@@ -27,7 +27,7 @@ class CreasePattern():
 		#
 		# For example, an entry [0, 1] would correspond to the fold vector 
 		# pointing *from* point 0 *towards* point 1
-		self.fold_vector_points = np.array(data['fold_vector_points'])
+		self.fold_vector_points = np.array(data['fold_vector_points'], dtype=np.int8)
 
 		# A 2D array containing the fold indices associated with each interior fold
 		# intersection: these are expected to be in counter-clockwise (CCW) order
@@ -45,14 +45,14 @@ class CreasePattern():
 		#
 		# i -> index of the interior fold intersection
 		# j -> index of the j-th fold surrounding the i-th interior fold intersection
-		self.intersection_fold_indices = np.array(data['intersection_fold_indices'])
+		self.intersection_fold_indices = np.array(data['intersection_fold_indices'], dtype=np.int8)
 
 		# To avoid the use of negative indices (mentioned above), we use a second array
 		# below:
 		#
 		# `True`: the j-th fold vector points away from the i-th interior fold intersection
 		# `False`: the j-th fold vector points towards the i-th interior fold intersection
-		self.sign_intersection_fold_indices = np.array(data['sign_intersection_fold_indices'])
+		self.sign_intersection_fold_indices = np.array(data['sign_intersection_fold_indices'], dtype=np.bool)
 
 		# A 2D array containing the indices of all of the folds (and reference points) that  
 		# form the boundary of each face (again, in CCW order)
@@ -60,30 +60,30 @@ class CreasePattern():
 		# Because there may be faces with differing numbers of boundary folds (i.e. triangular
 		# vs. quadrilateral faces), we introduce the "filler" index to right-fill "jagged" arrays
 		# so that each sub-array has the same number of entries
-		self.face_boundary = np.array(data['face_boundary'])
+		self.face_boundary = np.array(data['face_boundary'], dtype=np.int8)
 
 		# A 2D array specifying the "sign" of each fold in the `face_boundary` array:
 		#
 		# `True`: the fold vector points CCW around the face
 		# `False`: the fold vector points CW around the face
-		self.sign_face_boundary = np.array(data['sign_face_boundary'])
+		self.sign_face_boundary = np.array(data['sign_face_boundary'], dtype=np.bool)
 
 		# The index of the face that will remain fixed throughout the simulation
 		self.fixed_face = data['fixed_face']
 
 		# A 1D array that specifies an upper bound on the range of values that each fold
 		# angle can take on
-		self.fold_angle_upper_bound = np.array(data['fold_angle_upper_bound'])
+		self.fold_angle_upper_bound = np.array(data['fold_angle_upper_bound'], dtype=np.float)
 
 		# A 1D array that specifies a lower bound on the range of values that each fold
 		# angle can take on
-		self.fold_angle_lower_bound = np.array(data['fold_angle_lower_bound'])
+		self.fold_angle_lower_bound = np.array(data['fold_angle_lower_bound'], dtype=np.float)
 
 		# A 1D array that specifies each of the fold angles in the reference configuration
-		self.fold_angle_initial_value = np.array(data['fold_angle_initial_value'])
+		self.fold_angle_initial_value = np.array(data['fold_angle_initial_value'], dtype=np.float)
 
 		# A 1D array that specifies the target fold angles
-		self.fold_angle_target = np.array(data['fold_angle_target'])
+		self.fold_angle_target = np.array(data['fold_angle_target'], dtype=np.float)
 
 		self.compute_properties()
 
@@ -92,6 +92,8 @@ class CreasePattern():
 		properties that are needed throughout the simulation
 
 		'''
+		debug = False
+
 		# The total number of reference points (i.e. vertices)
 		self.num_reference_ponts = self.reference_points.shape[0]
 
@@ -199,18 +201,19 @@ class CreasePattern():
 				else:
 					self.fold_ref_angle_wrt_e1_i[i][j] = 2.0 * math.pi - math.acos(x / norm_of_v)
 
-		for i in range(self.num_fold_intersections):
+		if debug:
+			for i in range(self.num_fold_intersections):
 
-			print(f'Interior fold intersection #{i} angles w.r.t. +x-axis:')
+				print(f'Interior fold intersection #{i} angles w.r.t. +x-axis:')
 
-			for j in range(self.num_intersection_folds[i]):
-				# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
-				# emanating from the i-th interior fold intersection
-				global_fold_index = self.intersection_fold_indices[i][j]
-				start_index, end_index = self.fold_vector_points[global_fold_index]
-				theta = self.fold_ref_angle_wrt_e1_i[i][j]
+				for j in range(self.num_intersection_folds[i]):
+					# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
+					# emanating from the i-th interior fold intersection
+					global_fold_index = self.intersection_fold_indices[i][j]
+					start_index, end_index = self.fold_vector_points[global_fold_index]
+					theta = self.fold_ref_angle_wrt_e1_i[i][j]
 
-				print(f'\tFold #{j} (corresponding to fold index {global_fold_index}, with reference point indices [{start_index}-{end_index}]) forms angle {math.degrees(theta)} w.r.t. +x-axis')
+					print(f'\tFold #{j} (corresponding to fold index {global_fold_index}, with reference point indices [{start_index}-{end_index}]) forms angle {math.degrees(theta)} w.r.t. +x-axis')
 
 		# A 2D array containing the face corner angles surrounding each interior fold intersection (in CCW order)
 		self.face_corner_angles = np.zeros((self.num_fold_intersections, max(self.num_intersection_folds)))
@@ -247,18 +250,18 @@ class CreasePattern():
 		# 	# Corner angles surrounding interior fold intersection #2
 		# 	# ...
 		# ])
+		if debug:
+			for i in range(self.num_fold_intersections):
 
-		for i in range(self.num_fold_intersections):
+				print(f'Interior fold intersection #{i} corner angles:')
 
-			print(f'Interior fold intersection #{i} corner angles:')
+				for j in range(self.num_intersection_folds[i]):
+					# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
+					# emanating from the i-th interior fold intersection
+					global_fold_index = self.intersection_fold_indices[i][j]
+					theta = self.face_corner_angles[i][j]
 
-			for j in range(self.num_intersection_folds[i]):
-				# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
-				# emanating from the i-th interior fold intersection
-				global_fold_index = self.intersection_fold_indices[i][j]
-				theta = self.face_corner_angles[i][j]
-
-				print(f'\tCorner angle #{j} (corresponding to fold index {global_fold_index}) has angle: {math.degrees(theta)}')
+					print(f'\tCorner angle #{j} (corresponding to fold index {global_fold_index}) has angle: {math.degrees(theta)}')
 
 		# A 3D array containing all of the corner points of each polygonal face, which may or 
 		# may not be triangular
@@ -360,7 +363,6 @@ class CreasePattern():
 		# fold intersection)
 		#
 		# NOTE: can this be done via Hamiltonian refinement (see page 233 of "Geometric Folding Algorithms")?
-		debug = False
 		self.fold_paths = np.full((self.num_faces, self.num_folds), self.filler_index, dtype=np.int8)
 		self.sign_fold_paths = np.full((self.num_faces, self.num_folds), True, dtype=np.bool)
 		
@@ -489,24 +491,19 @@ class CreasePattern():
 			if debug:
 				print(f'Face {i}: \n{path}\n{sign_path}\n')
 
-		# PLACEHOLDER:
-		#
-		# self.fold_paths = np.array([
-		# 	[3, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
-		# 	[3, 0, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
-		# 	[3, 0, 1, self.filler_index, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
-		# 	[3, 0, 1, 2, self.filler_index, self.filler_index, self.filler_index, self.filler_index],
-		# 	[3, 0, 1, 2, 4, self.filler_index, self.filler_index, self.filler_index],
-		# 	[3, 0, 1, 2, 4, 7, self.filler_index, self.filler_index],
-		# 	[3, 0, 1, 2, 4, 7, 6, self.filler_index],
-		# 	[3, 0, 1, 2, 4, 7, 6, 5]
-		# ])
 		assert self.fold_paths.shape == (self.num_faces, self.num_folds)
 
 	def compute_folding_map(self, fold_angles):
-		'''Computes a folding map: the i-th element of the folding map is a 4x4 transformation 
-		matrix that maps a point in the fixed face to a target point in the i-th face, taking 
-		into account all of the fold angles, etc. that you would encounter on such a path
+		'''Computes a folding map
+
+		Args:
+			fold_angles (numpy.ndarray): a 1D array containing the fold angles of the desired 
+				configuration
+
+		Returns:
+			numpy.ndarray: a 3D array containing a 4x4 transformation matrix that maps a point
+				in the fixed face to a target point in the i-th face, taking into account all
+				of the folds that you would encounter on such a path
 
 		'''
 		folding_map = np.zeros((self.num_faces, 4, 4))
@@ -546,5 +543,5 @@ class CreasePattern():
 		return folding_map
 
 if __name__ == "__main__":
-	cp = CreasePattern('patterns/medium.json')
+	cp = CreasePattern('patterns/simple.json')
 

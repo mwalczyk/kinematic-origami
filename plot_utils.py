@@ -61,6 +61,8 @@ def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_na
 	poly_collection = Poly3DCollection(all_polys)
 	poly_collection.set_facecolor([scalar_color_map.to_rgba(i)[:3] for i in range(crease_pattern.num_faces)])
 	poly_collection.set_alpha(alpha)
+	poly_collection.set_zsort('max')
+	
 	if edges:
 		poly_collection.set_edgecolor('k')
 

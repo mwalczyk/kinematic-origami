@@ -5,32 +5,37 @@ import matrix_utils as mu
 
 class Solver:
 
-	def __init__(self):
-		# Weight for residuals from rotation constraints
-		self.weight_rotation_constraint = 1
+	def __init__(self, **kwargs):
+		prop_defaults = {
+			# Weight for residuals from rotation constraints
+			'weight_rotation_constraint': 1.0,
 
-		# Weight for residuals from fold angle bound constraints
-		self.weight_fold_angle_bounds = 1e-5
+			# Weight for residuals from fold angle bound constraints
+			'weight_fold_angle_bounds': 1e-5,
 
-		# Tolerance for norm of residual vector: https://en.wikipedia.org/wiki/Residual_(numerical_analysis)
-		self.tolerance_residual = 1e-8
+			# Tolerance for norm of residual vector: https://en.wikipedia.org/wiki/Residual_(numerical_analysis)
+			'tolerance_residual': 1e-8,
 
-		# Tolerance for correction of fold angles
-		self.tolerance_fold_angle = 1e-8
+			# Tolerance for correction of fold angles
+			'tolerance_fold_angle': 1e-8,
 
-		# Maximum number of iterations allowed for each increment
-		self.max_iterations = 15
+			# Maximum number of iterations allowed for each increment
+			'max_iterations': 15,
 
-		# Maximum correction allowed for individual fold angles in each iteration
-		self.max_fold_angle_correction = math.radians(5.0)
+			# Maximum correction allowed for individual fold angles in each iteration
+			'max_fold_angle_correction': math.radians(5.0),
 
-		# Number of increments
-		self.num_increments = 50
+			# Number of increments
+			'num_increments': 50,
 
-		# Finite difference step in fold angles for calculation of derivatives
-		self.fin_diff_step = math.radians(2.0)
+			# Finite difference step in fold angles for calculation of derivatives
+			'fin_diff_step': math.radians(2.0)
+		}
 
-	def run(self, crease_pattern, verbose=False):
+		for (prop, default) in prop_defaults.items():
+			setattr(self, prop, kwargs.get(prop, default))
+
+	def run(self, crease_pattern, verbose=True):
 		'''Runs the kinematic solver on the provided crease pattern, satisfying two 
 		constraints at each iteration:
 		

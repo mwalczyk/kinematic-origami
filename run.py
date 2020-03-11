@@ -11,9 +11,9 @@ from solver import Solver
 
 if __name__ == "__main__":
 	# Initialize the crease pattern and solver
-	increments = 50
-	crease_pattern = CreasePattern('patterns/medium.json')
-	solver = Solver()
+	increments = 40
+	crease_pattern = CreasePattern('patterns/medium_modified.json')
+	solver = Solver(num_increments=increments)
 
 	# Hide toolbars (with "save" button, etc.) and set the GUI theme
 	matplotlib.rcParams['toolbar'] = 'None'
