@@ -39,15 +39,10 @@ class Solver:
 		'''Runs the kinematic solver on the provided crease pattern, satisfying two 
 		constraints at each iteration:
 		
-		1. Kinematic constraints
-		2. Lower and upper bounds of the fold angles
-		
-		(1) states that the rotation constraint matrix corresponding to each interior fold
-		intersection should be equal to the 4x4 identity matrix (this constraint applies to 
-		ALL of the interior fold intersections, simultaneously)
-		
-		(2) states that each of the fold angles should not exceed (or drop below) its
-		upper / lower bound, respectively
+		1. Kinematic constraints: the rotation constraint matrix corresponding to each interior fold
+			intersection should be equal to the 4x4 identity matrix 
+		2. Lower and upper bounds: each of the fold angles should not exceed (or drop below) its 
+			upper / lower bound, respectively
 		
 		'''
 		history_fold_angles = np.zeros((self.num_increments + 1, crease_pattern.num_folds))
@@ -73,10 +68,13 @@ class Solver:
 				# Calculate the projection of the guess increments for the fold angles
 				# onto the null space of the residual vector derivatives from the previous
 				# configuration
-				delta = np.dot(np.eye(crease_pattern.num_folds) - np.matmul(np.linalg.pinv(d_residual_d_fold_angles), d_residual_d_fold_angles), fold_angle_change_per_increment[increment - 1])
+				#
+				# Equation `2.78`
+				projected_fold_angle_increment = np.dot(np.eye(crease_pattern.num_folds) - 
+												 np.matmul(np.linalg.pinv(d_residual_d_fold_angles), d_residual_d_fold_angles), fold_angle_change_per_increment[increment - 1])
 
 				# Resource: `https://ocw.mit.edu/courses/mathematics/18-06sc-linear-algebra-fall-2011/least-squares-determinants-and-eigenvalues/projections-onto-subspaces/MIT18_06SCF11_Ses2.2sum.pdf`
-				history_fold_angles[increment] = history_fold_angles[increment - 1] + delta
+				history_fold_angles[increment] = history_fold_angles[increment - 1] + projected_fold_angle_increment
 
 			for iteration in range(self.max_iterations):
 				if verbose:
@@ -141,6 +139,7 @@ class Solver:
 					# Calculate the first `3 * N_I + 2 * N_F` components of the derivative of the residual vector
 					# w.r.t. each of the fold angles using a central finite difference
 					for j in range(crease_pattern.num_intersection_folds[i]):
+						# Calculate forwards / backwards
 						forward_step = np.zeros_like(i_fold_angles)
 						forward_step[j] = self.fin_diff_step
 						forward = mu.get_rotation_constraint_matrix(i_corner_angles, i_fold_angles + forward_step)
@@ -209,7 +208,9 @@ class Solver:
 					
 					break
 				else:
-					# Calculate the fold angle corrections from the Jacobian matrix and the residual vector
+					# Calculate the fold angle corrections from the first-order expansion of the residual vector:
+					# this is the generalized Newton's method, where we seek to iteratively refine the current 
+					# fold angles so as to minimize the norm of the residual vector
 					fold_angle_corrections = np.dot(-np.linalg.pinv(d_residual_d_fold_angles), residual)
 					assert np.shape(fold_angle_corrections) == (crease_pattern.num_folds,)
 

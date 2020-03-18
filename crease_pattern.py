@@ -9,6 +9,13 @@ import matrix_utils as mu
 class CreasePattern():
 
 	def __init__(self, path_to_json):
+		'''Constructs a new crease pattern
+
+		Args:
+			path_to_json (str): the path to the file containing all of the required
+				crease pattern data
+
+		'''
 		with open(path_to_json) as f:
 			data = json.load(f)
 
