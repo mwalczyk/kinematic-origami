@@ -52,23 +52,15 @@ def generate_waterbomb_tessellation(cell_size=4.0, cells_x=5, cells_y=2, path_to
 			elif cell_type == 1 or cell_type == 4:
 				s = (y + 0) * (cells_x + 1) + (x + 1)
 				e = (y + 1) * (cells_x + 1) + (x + 0)
-				fold_vector_points.append([s, e])
-				fold_angle_upper_bound.append(math.pi)
-				fold_angle_lower_bound.append(-math.pi)
-				fold_angle_initial_value.append(0.0)
-				fold_angle_target.append(-math.pi)
+				add_fold(s, e)
 
 
 			elif cell_type == 2 or cell_type == 3: 
 				
 				s = (y + 0) * (cells_x + 1) + (x + 0)
 				e = (y + 1) * (cells_x + 1) + (x + 1)
+				add_fold(s, e)
 				
-				fold_vector_points.append([s, e])
-				fold_angle_upper_bound.append(math.pi)
-				fold_angle_lower_bound.append(-math.pi)
-				fold_angle_initial_value.append(0.0)
-				fold_angle_target.append(-math.pi)
 
 	pprint(fold_vector_points)
 			

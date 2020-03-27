@@ -57,7 +57,7 @@ class CreasePattern():
 		# To avoid the use of negative indices (mentioned above), we use a second array
 		# below:
 		#
-		# `True`: the j-th fold vector points away from the i-th interior fold intersection
+		# `True`: the j-th fold vector points away (emanates) from the i-th interior fold intersection
 		# `False`: the j-th fold vector points towards the i-th interior fold intersection
 		self.sign_intersection_fold_indices = np.array(data['sign_intersection_fold_indices'], dtype=np.bool)
 

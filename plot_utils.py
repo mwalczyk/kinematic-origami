@@ -68,16 +68,35 @@ def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_na
 
 	axes_3d.add_collection3d(poly_collection)
 
-def plot_crease_pattern(axes_2d, crease_pattern, color_map_name='autumn', annotate_folds=True, annotate_reference_points=True, annotate_faces=True):
+def plot_crease_pattern(axes_2d, crease_pattern, color_map_name=None, annotate_folds=True, annotate_reference_points=True, annotate_faces=True):
 	'''Draws the planar graph corresponding to this crease pattern, along with some
 	helpful annotations
 
 	'''
-	# Matplotlib utility for mapping fold indices to colors
-	scalar_color_map = ScalarMappable(norm=matplotlib.cm.colors.Normalize(0, crease_pattern.num_folds), 
-									  cmap=plt.get_cmap(color_map_name)) 
+	if color_map_name:
+		# Matplotlib utility for mapping fold indices to colors
+		scalar_color_map = ScalarMappable(norm=matplotlib.cm.colors.Normalize(0, crease_pattern.num_folds), 
+										  cmap=plt.get_cmap(color_map_name)) 
 
-	colors = [scalar_color_map.to_rgba(i)[:3] for i in range(crease_pattern.num_folds)]
+		colors = [scalar_color_map.to_rgba(i)[:3] for i in range(crease_pattern.num_folds)]
+	else:
+		# No color map was supplied - provide default colors based on crease
+		# assignments:
+		#
+		# 		V folds (- target angle) -> blue
+		# 		M folds (+ target angle) -> red
+		m_color = (1, 0, 0)
+		v_color = (0, 0, 1)
+		b_color = (0, 0, 0)
+
+		colors = []
+		for i in range(crease_pattern.num_folds):
+			if crease_pattern.fold_angle_target[i] < 0.0:
+				colors.append(v_color)
+			elif crease_pattern.fold_angle_target[i] > 0.0:
+				colors.append(m_color)
+			else:
+				colors.append(b_color)
 
 	line_segments = [[a, b] for a, b in zip(crease_pattern.p1, crease_pattern.p2)]
 	line_segment_midpoints = [(a + b) * 0.5 for a, b in zip(crease_pattern.p1, crease_pattern.p2) ]
@@ -93,13 +112,13 @@ def plot_crease_pattern(axes_2d, crease_pattern, color_map_name='autumn', annota
 
 	if annotate_folds:
 		for i, (x, y) in enumerate(line_segment_midpoints):
-			label = 'f{}'.format(i)
-			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize='x-small', fontweight='bold')
+			label = 'e{}\n{}-{}'.format(i, crease_pattern.fold_vector_points[i][0], crease_pattern.fold_vector_points[i][1])
+			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize=6, fontweight='bold')
 	if annotate_reference_points:
 		for i, (x, y) in enumerate(crease_pattern.reference_points):
-			label = 'rp{}'.format(i)
+			label = 'v{}'.format(i)
 			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize='x-small')
 	if annotate_faces:
 		for i, (x, y) in enumerate(crease_pattern.face_centers):
-			label = 'face\n{}'.format(i)
-			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize=4)#'x-small')
+			label = 'f{}'.format(i)
+			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize=4)

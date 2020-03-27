@@ -56,7 +56,7 @@ class Solver:
 		# 
 		# However, these guess increments will be modified through the procedure outlined in the solver loop
 		fold_angle_change_per_increment = np.tile(crease_pattern.fold_angle_target / float(self.num_increments), (self.num_increments, 1))
-
+		
 		for increment in range(self.num_increments + 1):
 			
 			print(f'Increment: {increment}')
@@ -204,7 +204,7 @@ class Solver:
 				
 				if norm_residual < self.tolerance_residual:
 					if verbose:
-						print('The L2 norm of the residual vector is less than the tolerance: fold angle corrections are not necessary - continuing...')
+						print('\tThe L2 norm of the residual vector is less than the tolerance: fold angle corrections are not necessary - continuing...')
 					
 					break
 				else:
@@ -219,7 +219,7 @@ class Solver:
 					# Don't allow super large corrections
 					if max(fold_angle_corrections) > self.max_fold_angle_correction:
 						if verbose:
-							print('Rescaling `fold_angle_corrections: too large...')
+							print('\tRescaling `fold_angle_corrections: too large...')
 
 						fold_angle_corrections = fold_angle_corrections * self.max_fold_angle_correction / max(fold_angle_corrections)
 
@@ -228,7 +228,7 @@ class Solver:
 
 					if norm_fold_angle_corrections < self.tolerance_fold_angle:
 						if verbose:
-							print('The L2 norm of the fold angle corrections vector is less than the tolerance: exiting solver')
+							print('\tThe L2 norm of the fold angle corrections vector is less than the tolerance: exiting solver')
 						
 						break
 

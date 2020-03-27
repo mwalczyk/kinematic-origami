@@ -12,7 +12,7 @@ from solver import Solver
 if __name__ == "__main__":
 	# Initialize the crease pattern and solver
 	increments = 40
-	crease_pattern = CreasePattern('patterns/medium_modified.json')
+	crease_pattern = CreasePattern('patterns/medium.json')
 	solver = Solver(num_increments=increments)
 
 	# Hide toolbars (with "save" button, etc.) and set the GUI theme
@@ -21,6 +21,7 @@ if __name__ == "__main__":
 
 	# Create a 3D plot for displaying various folded configurations of the model
 	solve = True
+	print_fold_angles = False
 	size = 50
 	fig_3d = plt.figure()
 	fig_3d.canvas.set_window_title('Folded Configuration')
@@ -43,6 +44,10 @@ if __name__ == "__main__":
 	if solve:
 		# Run the solver
 		history_fold_angles = solver.run(crease_pattern)
+
+		if print_fold_angles:
+			for fold_angles in history_fold_angles:
+				pprint(fold_angles)
 
 		# Create a separate 2D axes for the GUI elements
 		axes_slider = plt.axes([0.25, 0.125, 0.5, 0.03])
