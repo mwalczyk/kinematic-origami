@@ -11,7 +11,7 @@ from solver import Solver
 
 if __name__ == "__main__":
 	# Initialize the crease pattern and solver
-	increments = 40
+	increments = 50
 	crease_pattern = CreasePattern('patterns/medium.json')
 	solver = Solver(num_increments=increments)
 
@@ -37,6 +37,7 @@ if __name__ == "__main__":
 	# Create a 2D plot for displaying the crease pattern (as a planar graph)
 	fig, axes_2d = plt.subplots()
 	fig.canvas.set_window_title('Crease Pattern')
+	fig.set_size_inches(10.5, 10.5)
 	plt.subplots_adjust(bottom=0.25)
 	axes_2d.tick_params(axis='both', which='major', labelsize=6)
 	axes_2d.tick_params(axis='both', which='minor', labelsize=6)

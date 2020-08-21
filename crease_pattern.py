@@ -100,6 +100,9 @@ class CreasePattern():
 
 		'''
 		debug = False
+		def print_debug(msg):
+			if debug: 
+				print(msg)
 
 		# The total number of reference points (i.e. vertices)
 		self.num_reference_ponts = self.reference_points.shape[0]
@@ -186,21 +189,26 @@ class CreasePattern():
 
 		for i in range(self.num_fold_intersections):
 
+			print_debug(f'Processing interior fold intersection #{i}')
+
 			# See notes above...
 			for j in range(self.num_intersection_folds[i]):
+				# The index of the j-th fold surrounding the i-th interior fold intersection
+				global_fold_index = self.intersection_fold_indices[i][j]
+				outward_facing_fold_vector = self.fold_vector[global_fold_index].copy()
 
-				k = self.intersection_fold_indices[i][j]
-				v = self.fold_vector[k]
+				did_flip = False 
 
 				# We might need to flip the vector along this fold
 				if not self.sign_intersection_fold_indices[i][j]:
-					v *= -1.0
+					outward_facing_fold_vector *= -1.0
+					did_flip = True
 
 				# Store this vector
-				self.fold_direction_i[i][j] = v
+				self.fold_direction_i[i][j] = outward_facing_fold_vector
 
 				# Calculate the angle that it makes with e1
-				x, y = v
+				x, y = outward_facing_fold_vector
 				norm_of_v = math.sqrt(x*x + y*y)
 
 				if y >= 0.0: 
@@ -208,19 +216,18 @@ class CreasePattern():
 				else:
 					self.fold_ref_angle_wrt_e1_i[i][j] = 2.0 * math.pi - math.acos(x / norm_of_v)
 
-		if debug:
-			for i in range(self.num_fold_intersections):
+				print_debug(f'\tFold {global_fold_index}: outward facing fold vector = <{x}, {y}>, did flip = {did_flip}, norm = {norm_of_v}, angle = {self.fold_ref_angle_wrt_e1_i[i][j]}')
 
-				print(f'Interior fold intersection #{i} angles w.r.t. +x-axis:')
 
-				for j in range(self.num_intersection_folds[i]):
-					# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
-					# emanating from the i-th interior fold intersection
-					global_fold_index = self.intersection_fold_indices[i][j]
-					start_index, end_index = self.fold_vector_points[global_fold_index]
-					theta = self.fold_ref_angle_wrt_e1_i[i][j]
-
-					print(f'\tFold #{j} (corresponding to fold index {global_fold_index}, with reference point indices [{start_index}-{end_index}]) forms angle {math.degrees(theta)} w.r.t. +x-axis')
+		for i in range(self.num_fold_intersections):
+			print_debug(f'Interior fold intersection #{i} angles w.r.t. +x-axis:')
+			for j in range(self.num_intersection_folds[i]):
+				# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
+				# emanating from the i-th interior fold intersection
+				global_fold_index = self.intersection_fold_indices[i][j]
+				start_index, end_index = self.fold_vector_points[global_fold_index]
+				theta = self.fold_ref_angle_wrt_e1_i[i][j]
+				print_debug(f'\tFold #{j} (corresponding to fold index {global_fold_index}, with reference point indices [{start_index}-{end_index}]) forms angle {math.degrees(theta)} w.r.t. +x-axis')
 
 		# A 2D array containing the face corner angles surrounding each interior fold intersection (in CCW order)
 		self.face_corner_angles = np.zeros((self.num_fold_intersections, max(self.num_intersection_folds)))
@@ -229,7 +236,9 @@ class CreasePattern():
 
 			for j in range(self.num_intersection_folds[i]):
 				# If this is the last fold that emanates from the i-th interior fold intersection,
-				# add 2π 
+				# add 2π - for example, if the first fold makes a 45-degree angle w.r.t. e1 and the
+				# last fold makes a 315-degree angle w.r.t. e1, we want to return 90, not 45 - 315
+				# (which would be -270): 360 + (45 - 315) = 90
 				# 
 				# Otherwise, the face corner angle is simply the difference between the next
 				# fold angle and the current fold angle
@@ -239,36 +248,18 @@ class CreasePattern():
 					self.face_corner_angles[i][j] = self.fold_ref_angle_wrt_e1_i[i][j + 1] - self.fold_ref_angle_wrt_e1_i[i][j]
 
 				# Prevent face corner angles from ever being negative or greater than 2π - is there
-				# a better way to do this?
-				if self.face_corner_angles[i][j] >= (2.0 * math.pi):
-					self.face_corner_angles[i][j] -= 2.0 * math.pi
-				elif self.face_corner_angles[i][j] < 0.0:
-					self.face_corner_angles[i][j] += 2.0 * math.pi
+				# a better way to do this? I don't think this should ever happen...
+				# if self.face_corner_angles[i][j] >= (2.0 * math.pi):
+				# 	self.face_corner_angles[i][j] -= 2.0 * math.pi
+				# elif self.face_corner_angles[i][j] < 0.0:
+				# 	self.face_corner_angles[i][j] += 2.0 * math.pi
 
-		# PLACEHOLDER:
-		#
-		# self.face_corner_angles = np.array([
-		# 	# Corner angles surrounding interior fold intersection #0
-		# 	[math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4, math.pi / 4]
-
-		# 	# Corner angles surrounding interior fold intersection #1
-		# 	# ...
-
-		# 	# Corner angles surrounding interior fold intersection #2
-		# 	# ...
-		# ])
-		if debug:
-			for i in range(self.num_fold_intersections):
-
-				print(f'Interior fold intersection #{i} corner angles:')
-
-				for j in range(self.num_intersection_folds[i]):
-					# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
-					# emanating from the i-th interior fold intersection
-					global_fold_index = self.intersection_fold_indices[i][j]
-					theta = self.face_corner_angles[i][j]
-
-					print(f'\tCorner angle #{j} (corresponding to fold index {global_fold_index}) has angle: {math.degrees(theta)}')
+		for i in range(self.num_fold_intersections):
+			print_debug(f'Interior fold intersection #{i} corner angles:')
+			for j in range(self.num_intersection_folds[i]):
+				global_fold_index = self.intersection_fold_indices[i][j]
+				theta = self.face_corner_angles[i][j]
+				print_debug(f'\tCorner angle #{j} (corresponding to fold index {global_fold_index}) has angle: {math.degrees(theta)}')
 
 		# A 3D array containing all of the corner points of each polygonal face, which may or 
 		# may not be triangular
@@ -318,13 +309,11 @@ class CreasePattern():
 		    
 			self.num_face_corner_points[i] = count
 
+
 		for i in range(self.num_faces):
-
-			print('Face {} corner points:'.format(i))
-
+			print_debug('Face {} corner points:'.format(i))
 			for j in range(self.num_face_corner_points[i]):
-
-				print('\tPoint {}: {}'.format(j, self.face_corner_points[i][j]))
+				print_debug('\tPoint {}: {}'.format(j, self.face_corner_points[i][j]))
 
 		# A 2D array containing the center point of each face (for labeling purposes) - note that this is
 		# not required for simulation
@@ -396,9 +385,8 @@ class CreasePattern():
 					if i != j and fold_index in self.face_boundary[j]:
 						face_neighbors[i].add((j, fold_index))
 
-		if debug:
-			print('Face neighbors:')
-			pprint(face_neighbors)
+		print_debug('Face neighbors:')
+		print_debug(face_neighbors)
 
 		def breadth_first_search(root):
 			'''A helper function for performing a breadth first search from the fold
@@ -447,10 +435,8 @@ class CreasePattern():
 		# us determine the index of the shared fold between any two neighboring
 		# faces
 		came_from = {i: breadth_first_search(i) for i in range(self.num_faces)} 
-
-		if debug:
-			print('Results of BFS:')
-			pprint(came_from)
+		print_debug('Results of BFS:')
+		print_debug(came_from)
 
 		for i in range(self.num_faces):
 
@@ -495,8 +481,7 @@ class CreasePattern():
 			self.fold_paths[i] = path
 			self.sign_fold_paths[i] = sign_path
 
-			if debug:
-				print(f'Face {i}: \n{path}\n{sign_path}\n')
+			print_debug(f'Face {i}: \n{path}\n{sign_path}\n')
 
 		assert self.fold_paths.shape == (self.num_faces, self.num_folds)
 

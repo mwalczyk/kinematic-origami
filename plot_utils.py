@@ -14,7 +14,7 @@ def plot_reference_configuration(axes_3d, crease_pattern):
 
 	plot_custom_configuration(axes_3d, crease_pattern, fold_angles)
 
-def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_name='winter', alpha=0.75, edges=True):
+def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_name='autumn', alpha=0.75, edges=True):
 	'''Draws the crease pattern in a particular folded state
 
 	'''
@@ -113,12 +113,12 @@ def plot_crease_pattern(axes_2d, crease_pattern, color_map_name=None, annotate_f
 	if annotate_folds:
 		for i, (x, y) in enumerate(line_segment_midpoints):
 			label = 'e{}\n{}-{}'.format(i, crease_pattern.fold_vector_points[i][0], crease_pattern.fold_vector_points[i][1])
-			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize=6, fontweight='bold')
+			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize=8, fontweight='bold')
 	if annotate_reference_points:
 		for i, (x, y) in enumerate(crease_pattern.reference_points):
 			label = 'v{}'.format(i)
-			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize='x-small')
+			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 4), ha='center', fontsize=8)
 	if annotate_faces:
 		for i, (x, y) in enumerate(crease_pattern.face_centers):
-			label = 'f{}'.format(i)
-			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize=4)
+			label = 'F{}'.format(i)
+			axes_2d.annotate(label, (x, y), textcoords="offset points", xytext=(0, 0), ha='center', fontsize=8)
