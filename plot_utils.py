@@ -14,7 +14,7 @@ def plot_reference_configuration(axes_3d, crease_pattern):
 
 	plot_custom_configuration(axes_3d, crease_pattern, fold_angles)
 
-def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_name='autumn', alpha=0.75, edges=True):
+def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_name='pink', alpha=0.75, edges=True):
 	'''Draws the crease pattern in a particular folded state
 
 	'''
@@ -55,7 +55,8 @@ def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_na
 			points_4d[j] = np.dot(composite, points_4d[j])
 
 		# Add a new polygon (drop the w-coordinate)
-		all_polys.append(points_4d[:,:3] + [size_x * 0.5, size_y * 0.5, 0.0])
+		fixed_face_center = np.append(crease_pattern.face_centers[crease_pattern.fixed_face], 0.0)
+		all_polys.append(points_4d[:,:3] + [size_x * 0.5, size_y * 0.5, 0.0] - fixed_face_center)
 
 	# Construct the actual polygon collection object and configure its draw state
 	poly_collection = Poly3DCollection(all_polys)

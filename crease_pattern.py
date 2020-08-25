@@ -8,7 +8,7 @@ import matrix_utils as mu
 
 class CreasePattern():
 
-	def __init__(self, path_to_json):
+	def __init__(self, path_to_json, scale=1.0):
 		'''Constructs a new crease pattern
 
 		Args:
@@ -27,7 +27,8 @@ class CreasePattern():
 		# reference (starting) configuration: each of these should lie in 
 		# span(e1, e2), i.e. on the xy-plane
 		self.reference_points = np.array(data['reference_points'], dtype=np.float)
-
+		self.reference_points *= scale 
+		
 		# A 2D array containing the indices corresponding to each pair of 
 		# reference points that form the start & end vertices of each fold 
 		# vector
@@ -67,7 +68,7 @@ class CreasePattern():
 		# Because there may be faces with differing numbers of boundary folds (i.e. triangular
 		# vs. quadrilateral faces), we introduce the "filler" index to right-fill "jagged" arrays
 		# so that each sub-array has the same number of entries
-		self.face_boundary = np.array(data['face_boundary'], dtype=np.int8)
+		self.face_boundary = np.array(data['face_boundary'], dtype=np.int32)
 
 		# A 2D array specifying the "sign" of each fold in the `face_boundary` array:
 		#
