@@ -237,7 +237,7 @@ class Solver:
 
 			else:
 
-				if self.use_projection:
+				if self.use_projection and crease_pattern.has_interior_fold_intersections:
 					# Calculate the projection of the guess increments for the fold angles
 					# onto the null space of the residual vector derivatives from the previous
 					# configuration - this helps reduce the number of subsequent iterations 
@@ -254,41 +254,43 @@ class Solver:
 				else:
 					history_fold_angles[increment] = history_fold_angles[increment - 1] + fold_angle_change_per_increment[increment - 1]
 
-			for iteration in range(self.max_iterations):
-				logger.debug(f'\tIteration: {iteration}')
-
-				# First, calculate the residual vector
-				residual, d_residual_d_fold_angles = self.calculate_residual(crease_pattern, history_fold_angles, increment)
+			if crease_pattern.has_interior_fold_intersections:
 				
-				# If the norm of the residual vector is sufficiently small, exit 
-				norm_residual = np.linalg.norm(residual) / residual.shape[0] 
-				if norm_residual < self.tolerance_residual:
-					logger.debug('\tThe L2 norm of the residual vector is less than the tolerance: fold angle corrections are not necessary - continuing...')
-					iterations_per_increment[increment] = iteration + 1
-					break
+				for iteration in range(self.max_iterations):
+					logger.debug(f'\tIteration: {iteration}')
 
-				else:
-					# Calculate the fold angle corrections from the first-order expansion of the residual vector:
-					# this is the generalized Newton's method, where we seek to iteratively refine the current 
-					# fold angles so as to minimize the norm of the residual vector
-					fold_angle_corrections = np.dot(-np.linalg.pinv(d_residual_d_fold_angles), residual)
-					assert np.shape(fold_angle_corrections) == (crease_pattern.num_folds,)
-
-					norm_fold_angle_corrections = np.linalg.norm(fold_angle_corrections) / fold_angle_corrections.shape[0]
-
-					# Don't allow super large corrections: this part was not described in the book but was in the 
-					# author's code and seems necessary, esp. for increments towards the end of the simulation
-					if max(fold_angle_corrections) > self.max_fold_angle_correction:
-						logger.debug('\tRescaling `fold_angle_corrections`: too large...')
-						fold_angle_corrections = fold_angle_corrections * self.max_fold_angle_correction / max(fold_angle_corrections)
-
-					# Apply the fold angle corrections to the current fold angles
-					history_fold_angles[increment] = history_fold_angles[increment] + fold_angle_corrections
-
-					if norm_fold_angle_corrections < self.tolerance_fold_angle:
-						logger.debug('\tThe L2 norm of the fold angle corrections vector is less than the tolerance: exiting solver')
+					# First, calculate the residual vector
+					residual, d_residual_d_fold_angles = self.calculate_residual(crease_pattern, history_fold_angles, increment)
+					
+					# If the norm of the residual vector is sufficiently small, exit 
+					norm_residual = np.linalg.norm(residual) / residual.shape[0] 
+					if norm_residual < self.tolerance_residual:
+						logger.debug('\tThe L2 norm of the residual vector is less than the tolerance: fold angle corrections are not necessary - continuing...')
 						iterations_per_increment[increment] = iteration + 1
 						break
+
+					else:
+						# Calculate the fold angle corrections from the first-order expansion of the residual vector:
+						# this is the generalized Newton's method, where we seek to iteratively refine the current 
+						# fold angles so as to minimize the norm of the residual vector
+						fold_angle_corrections = np.dot(-np.linalg.pinv(d_residual_d_fold_angles), residual)
+						assert np.shape(fold_angle_corrections) == (crease_pattern.num_folds,)
+
+						norm_fold_angle_corrections = np.linalg.norm(fold_angle_corrections) / fold_angle_corrections.shape[0]
+
+						# Don't allow super large corrections: this part was not described in the book but was in the 
+						# author's code and seems necessary, esp. for increments towards the end of the simulation
+						if max(fold_angle_corrections) > self.max_fold_angle_correction:
+							logger.debug('\tRescaling `fold_angle_corrections`: too large...')
+							fold_angle_corrections = fold_angle_corrections * self.max_fold_angle_correction / max(fold_angle_corrections)
+
+						# Apply the fold angle corrections to the current fold angles
+						history_fold_angles[increment] = history_fold_angles[increment] + fold_angle_corrections
+
+						if norm_fold_angle_corrections < self.tolerance_fold_angle:
+							logger.debug('\tThe L2 norm of the fold angle corrections vector is less than the tolerance: exiting solver')
+							iterations_per_increment[increment] = iteration + 1
+							break
 
 		logger.debug(f'Iterations per increment: {iterations_per_increment}')
 

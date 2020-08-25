@@ -161,105 +161,109 @@ class CreasePattern():
 			else:
 				self.fold_ref_angle_wrt_e1[i] = 2.0 * math.pi - math.acos(x / norm_of_v)
 
-		# A 3D array containing the direction vectors along each of the folds that emanate 
-		# from each of the interior fold intersections
-		#
-		# The direction vectors should always be oriented *outwards* from the interior fold 
-		# intersection
-		#
-		# Indices:
-		#
-		# i -> index of the interior fold intersection 
-		# j -> index of the j-th fold surrounding the i-th interior fold intersection
-		# k -> index of the coordinate (x or y): thus, k should always be 0 or 1
-		# 
-		# When indexing into the second dimension of this array, j, one should always use a 
-		# loop like:
-		# 
-		# 	for j in range(num_intersection_folds[i])
-		#		...
-		#
-		# This is because different interior fold intersections might have different numbers
-		# of surrounding folds, so we want to avoid referencing any "extra" / "filler" folds
-		# that implicitly "pad" the i-th interior fold intersection
-		self.fold_direction_i = np.zeros((self.num_fold_intersections, np.max(self.num_intersection_folds), 2))
+		if self.num_fold_intersections == 0:
+			self.has_interior_fold_intersections = False 
 
-		# The angle that each interior fold makes with e1
-		self.fold_ref_angle_wrt_e1_i = np.zeros((self.num_fold_intersections, np.max(self.num_intersection_folds)))
+		if self.has_interior_fold_intersections:
+			# A 3D array containing the direction vectors along each of the folds that emanate 
+			# from each of the interior fold intersections
+			#
+			# The direction vectors should always be oriented *outwards* from the interior fold 
+			# intersection
+			#
+			# Indices:
+			#
+			# i -> index of the interior fold intersection 
+			# j -> index of the j-th fold surrounding the i-th interior fold intersection
+			# k -> index of the coordinate (x or y): thus, k should always be 0 or 1
+			# 
+			# When indexing into the second dimension of this array, j, one should always use a 
+			# loop like:
+			# 
+			# 	for j in range(num_intersection_folds[i])
+			#		...
+			#
+			# This is because different interior fold intersections might have different numbers
+			# of surrounding folds, so we want to avoid referencing any "extra" / "filler" folds
+			# that implicitly "pad" the i-th interior fold intersection
+			self.fold_direction_i = np.zeros((self.num_fold_intersections, np.max(self.num_intersection_folds), 2))
 
-		for i in range(self.num_fold_intersections):
+			# The angle that each interior fold makes with e1
+			self.fold_ref_angle_wrt_e1_i = np.zeros((self.num_fold_intersections, np.max(self.num_intersection_folds)))
 
-			print_debug(f'Processing interior fold intersection #{i}')
+			for i in range(self.num_fold_intersections):
 
-			# See notes above...
-			for j in range(self.num_intersection_folds[i]):
-				# The index of the j-th fold surrounding the i-th interior fold intersection
-				global_fold_index = self.intersection_fold_indices[i][j]
-				outward_facing_fold_vector = self.fold_vector[global_fold_index].copy()
+				print_debug(f'Processing interior fold intersection #{i}')
 
-				did_flip = False 
+				# See notes above...
+				for j in range(self.num_intersection_folds[i]):
+					# The index of the j-th fold surrounding the i-th interior fold intersection
+					global_fold_index = self.intersection_fold_indices[i][j]
+					outward_facing_fold_vector = self.fold_vector[global_fold_index].copy()
 
-				# We might need to flip the vector along this fold
-				if not self.sign_intersection_fold_indices[i][j]:
-					outward_facing_fold_vector *= -1.0
-					did_flip = True
+					did_flip = False 
 
-				# Store this vector
-				self.fold_direction_i[i][j] = outward_facing_fold_vector
+					# We might need to flip the vector along this fold
+					if not self.sign_intersection_fold_indices[i][j]:
+						outward_facing_fold_vector *= -1.0
+						did_flip = True
 
-				# Calculate the angle that it makes with e1
-				x, y = outward_facing_fold_vector
-				norm_of_v = math.sqrt(x*x + y*y)
+					# Store this vector
+					self.fold_direction_i[i][j] = outward_facing_fold_vector
 
-				if y >= 0.0: 
-					self.fold_ref_angle_wrt_e1_i[i][j] = math.acos(x / norm_of_v)
-				else:
-					self.fold_ref_angle_wrt_e1_i[i][j] = 2.0 * math.pi - math.acos(x / norm_of_v)
+					# Calculate the angle that it makes with e1
+					x, y = outward_facing_fold_vector
+					norm_of_v = math.sqrt(x*x + y*y)
 
-				print_debug(f'\tFold {global_fold_index}: outward facing fold vector = <{x}, {y}>, did flip = {did_flip}, norm = {norm_of_v}, angle = {self.fold_ref_angle_wrt_e1_i[i][j]}')
+					if y >= 0.0: 
+						self.fold_ref_angle_wrt_e1_i[i][j] = math.acos(x / norm_of_v)
+					else:
+						self.fold_ref_angle_wrt_e1_i[i][j] = 2.0 * math.pi - math.acos(x / norm_of_v)
+
+					print_debug(f'\tFold {global_fold_index}: outward facing fold vector = <{x}, {y}>, did flip = {did_flip}, norm = {norm_of_v}, angle = {self.fold_ref_angle_wrt_e1_i[i][j]}')
 
 
-		for i in range(self.num_fold_intersections):
-			print_debug(f'Interior fold intersection #{i} angles w.r.t. +x-axis:')
-			for j in range(self.num_intersection_folds[i]):
-				# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
-				# emanating from the i-th interior fold intersection
-				global_fold_index = self.intersection_fold_indices[i][j]
-				start_index, end_index = self.fold_vector_points[global_fold_index]
-				theta = self.fold_ref_angle_wrt_e1_i[i][j]
-				print_debug(f'\tFold #{j} (corresponding to fold index {global_fold_index}, with reference point indices [{start_index}-{end_index}]) forms angle {math.degrees(theta)} w.r.t. +x-axis')
+			for i in range(self.num_fold_intersections):
+				print_debug(f'Interior fold intersection #{i} angles w.r.t. +x-axis:')
+				for j in range(self.num_intersection_folds[i]):
+					# Retrieve the *global* fold index of the fold that corresponds to the j-th fold
+					# emanating from the i-th interior fold intersection
+					global_fold_index = self.intersection_fold_indices[i][j]
+					start_index, end_index = self.fold_vector_points[global_fold_index]
+					theta = self.fold_ref_angle_wrt_e1_i[i][j]
+					print_debug(f'\tFold #{j} (corresponding to fold index {global_fold_index}, with reference point indices [{start_index}-{end_index}]) forms angle {math.degrees(theta)} w.r.t. +x-axis')
 
-		# A 2D array containing the face corner angles surrounding each interior fold intersection (in CCW order)
-		self.face_corner_angles = np.zeros((self.num_fold_intersections, max(self.num_intersection_folds)))
+			# A 2D array containing the face corner angles surrounding each interior fold intersection (in CCW order)
+			self.face_corner_angles = np.zeros((self.num_fold_intersections, max(self.num_intersection_folds)))
 
-		for i in range(self.num_fold_intersections):
+			for i in range(self.num_fold_intersections):
 
-			for j in range(self.num_intersection_folds[i]):
-				# If this is the last fold that emanates from the i-th interior fold intersection,
-				# add 2π - for example, if the first fold makes a 45-degree angle w.r.t. e1 and the
-				# last fold makes a 315-degree angle w.r.t. e1, we want to return 90, not 45 - 315
-				# (which would be -270): 360 + (45 - 315) = 90
-				# 
-				# Otherwise, the face corner angle is simply the difference between the next
-				# fold angle and the current fold angle
-				if j == self.num_intersection_folds[i] - 1:
-					self.face_corner_angles[i][j] = 2.0 * math.pi + (self.fold_ref_angle_wrt_e1_i[i][0] - self.fold_ref_angle_wrt_e1_i[i][j])
-				else:
-					self.face_corner_angles[i][j] = self.fold_ref_angle_wrt_e1_i[i][j + 1] - self.fold_ref_angle_wrt_e1_i[i][j]
+				for j in range(self.num_intersection_folds[i]):
+					# If this is the last fold that emanates from the i-th interior fold intersection,
+					# add 2π - for example, if the first fold makes a 45-degree angle w.r.t. e1 and the
+					# last fold makes a 315-degree angle w.r.t. e1, we want to return 90, not 45 - 315
+					# (which would be -270): 360 + (45 - 315) = 90
+					# 
+					# Otherwise, the face corner angle is simply the difference between the next
+					# fold angle and the current fold angle
+					if j == self.num_intersection_folds[i] - 1:
+						self.face_corner_angles[i][j] = 2.0 * math.pi + (self.fold_ref_angle_wrt_e1_i[i][0] - self.fold_ref_angle_wrt_e1_i[i][j])
+					else:
+						self.face_corner_angles[i][j] = self.fold_ref_angle_wrt_e1_i[i][j + 1] - self.fold_ref_angle_wrt_e1_i[i][j]
 
-				# Prevent face corner angles from ever being negative or greater than 2π - is there
-				# a better way to do this? I don't think this should ever happen...
-				# if self.face_corner_angles[i][j] >= (2.0 * math.pi):
-				# 	self.face_corner_angles[i][j] -= 2.0 * math.pi
-				# elif self.face_corner_angles[i][j] < 0.0:
-				# 	self.face_corner_angles[i][j] += 2.0 * math.pi
+					# Prevent face corner angles from ever being negative or greater than 2π - is there
+					# a better way to do this? I don't think this should ever happen...
+					# if self.face_corner_angles[i][j] >= (2.0 * math.pi):
+					# 	self.face_corner_angles[i][j] -= 2.0 * math.pi
+					# elif self.face_corner_angles[i][j] < 0.0:
+					# 	self.face_corner_angles[i][j] += 2.0 * math.pi
 
-		for i in range(self.num_fold_intersections):
-			print_debug(f'Interior fold intersection #{i} corner angles:')
-			for j in range(self.num_intersection_folds[i]):
-				global_fold_index = self.intersection_fold_indices[i][j]
-				theta = self.face_corner_angles[i][j]
-				print_debug(f'\tCorner angle #{j} (corresponding to fold index {global_fold_index}) has angle: {math.degrees(theta)}')
+			for i in range(self.num_fold_intersections):
+				print_debug(f'Interior fold intersection #{i} corner angles:')
+				for j in range(self.num_intersection_folds[i]):
+					global_fold_index = self.intersection_fold_indices[i][j]
+					theta = self.face_corner_angles[i][j]
+					print_debug(f'\tCorner angle #{j} (corresponding to fold index {global_fold_index}) has angle: {math.degrees(theta)}')
 
 		# A 3D array containing all of the corner points of each polygonal face, which may or 
 		# may not be triangular
@@ -293,6 +297,14 @@ class CreasePattern():
 				# Have we reached the end of this face?
 				if k == self.filler_index:
 					break
+
+				# If individual reference points are used to define corners of a face 
+				# at the boundary, the points should be referred as # of folds +
+				# reference point index #
+				if k >= self.num_folds:
+					self.face_corner_points[i][count] = self.reference_points[k - self.num_folds]
+					count += 1
+					continue
 
 				if self.sign_face_boundary[i][j]:
 					# Connect to fold in "positive" direction - the fold already goes CCW
@@ -330,6 +342,12 @@ class CreasePattern():
 			for j in self.face_boundary[i]:
 
 				if j != self.filler_index:
+
+					if j >= self.num_folds:
+						center += self.reference_points[j - self.num_folds]
+						count += 1
+						continue
+
 					# Get the start and end points of this fold, compute its midpoint,
 					# and accumulate
 					s = self.p1[j]

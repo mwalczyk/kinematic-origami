@@ -1,0 +1,55 @@
+{
+	"reference_points": [
+		[ 0, 0],
+		[20, 0],
+		[40, 0],
+		[60, 0],
+		[80, 0],
+		[ 0, 20],
+		[20, 20],
+		[40, 20],
+		[60, 20],
+		[80, 20]
+	],
+	"fold_vector_points": [
+		[1, 6],
+		[2, 7],
+		[3, 8]
+	],
+	"intersection_fold_indices": [],
+	"sign_intersection_fold_indices": [],
+	"face_boundary": [
+		[0, 8, 3],
+		[1, 0, -1],
+		[2, 1, -1],
+		[7, 12, 2] 
+	],
+	"sign_face_boundary": [
+		[true, true, true],
+		[true, false, true],
+		[true, false, true],
+		[true, true, false]
+
+	],
+	"fixed_face": 0,
+	"fold_angle_upper_bound":[ 
+		3.141592653589793, 
+		3.141592653589793,
+		3.141592653589793
+	],
+	"fold_angle_lower_bound": [
+		-3.141592653589793,
+		-3.141592653589793,
+		-3.141592653589793
+	],
+	"fold_angle_initial_value": [
+		0.0,
+		0.0,
+		0.0
+	],
+	"fold_angle_target": [
+		1.5707963267948966,
+		1.5707963267948966,
+		1.5707963267948966
+	]	
+}
