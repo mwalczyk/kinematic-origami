@@ -35,7 +35,7 @@ class CreasePattern():
 		#
 		# For example, an entry [0, 1] would correspond to the fold vector 
 		# pointing *from* point 0 *towards* point 1
-		self.fold_vector_points = np.array(data['fold_vector_points'], dtype=np.int8)
+		self.fold_vector_points = np.array(data['fold_vector_points'], dtype=np.int32)
 
 		# A 2D array containing the fold indices associated with each interior fold
 		# intersection: these are expected to be in counter-clockwise (CCW) order
@@ -53,7 +53,7 @@ class CreasePattern():
 		#
 		# i -> index of the interior fold intersection
 		# j -> index of the j-th fold surrounding the i-th interior fold intersection
-		self.intersection_fold_indices = np.array(data['intersection_fold_indices'], dtype=np.int8)
+		self.intersection_fold_indices = np.array(data['intersection_fold_indices'], dtype=np.int32)
 
 		# To avoid the use of negative indices (mentioned above), we use a second array
 		# below:
@@ -123,7 +123,7 @@ class CreasePattern():
 		assert self.fold_angle_initial_value.shape == (self.num_folds,) 
 
 		# A 2D array containing the number of folds emanating from each interior fold intersection
-		self.num_intersection_folds = np.zeros(self.num_fold_intersections, dtype=np.int8)
+		self.num_intersection_folds = np.zeros(self.num_fold_intersections, dtype=np.int32)
 
 		for i in range(self.num_fold_intersections):
 			count = np.count_nonzero(self.intersection_fold_indices[i] != self.filler_index)
@@ -164,6 +164,8 @@ class CreasePattern():
 
 		if self.num_fold_intersections == 0:
 			self.has_interior_fold_intersections = False 
+		else:
+			self.has_interior_fold_intersections = True
 
 		if self.has_interior_fold_intersections:
 			# A 3D array containing the direction vectors along each of the folds that emanate 
@@ -283,7 +285,7 @@ class CreasePattern():
 		self.face_corner_points = np.zeros((self.num_faces, 2 * max_boundary_folds_per_face, 2))
 
 		# A 1D array containing the number of corner points per face
-		self.num_face_corner_points = np.zeros(self.num_faces, dtype=np.int8)
+		self.num_face_corner_points = np.zeros(self.num_faces, dtype=np.int32)
 
 		# Figure out which reference points form this polygonal face, in CCW order
 		for i in range(self.num_faces):
@@ -378,7 +380,7 @@ class CreasePattern():
 		# fold intersection)
 		#
 		# NOTE: can this be done via Hamiltonian refinement (see page 233 of "Geometric Folding Algorithms")?
-		self.fold_paths = np.full((self.num_faces, self.num_folds), self.filler_index, dtype=np.int8)
+		self.fold_paths = np.full((self.num_faces, self.num_folds), self.filler_index, dtype=np.int32)
 		self.sign_fold_paths = np.full((self.num_faces, self.num_folds), True, dtype=np.bool)
 		
 		# Construct a dictionary that maps each face index to all of its neighboring faces
@@ -397,6 +399,11 @@ class CreasePattern():
 				# across all faces
 				if fold_index == self.filler_index:
 					break
+
+				# TODO: just added this - skip reference points used for face boundary: 
+				# does this always work?
+				if fold_index >= self.num_folds:
+					continue
 
 				# Is there another face that shares this same fold?
 				for j in range(self.num_faces):
@@ -552,6 +559,37 @@ class CreasePattern():
 			folding_map[face_index] = composite
 
 		return folding_map
+
+	def compute_folded_positions(self, fold_angles):
+		# Compute the face map based on the provided fold angles
+		face_map = self.compute_folding_map(fold_angles)
+		
+		fixed_face_center = np.append(self.face_centers[self.fixed_face], 0.0)
+
+		# Add all face polygons to one array (so that depth testing works)
+		transformed = np.zeros((self.num_faces, np.max(self.num_face_corner_points), 3))
+
+		for i in range(self.num_faces):
+			# Grab all of the 2D corner points that form this face
+			points_2d = self.face_corner_points[i][:self.num_face_corner_points[i]]
+			extra_0 = np.zeros((np.shape(points_2d)[0], 1))
+			extra_1 = np.ones((np.shape(points_2d)[0], 1))
+
+			# "Expand" the 2D coordinates into 4D by adding zeros and ones
+			points_3d = np.hstack((points_2d, extra_0))
+			points_4d = np.hstack((points_3d, extra_1))
+
+			# Grab the 4x4 transformation matrix
+			composite = face_map[i]
+
+			# Transform each corner point by the composite matrix
+			for j in range(self.num_face_corner_points[i]):
+				points_4d[j] = np.dot(composite, points_4d[j])
+
+			# Add a new polygon (drop the w-coordinate)
+			transformed[i,:self.num_face_corner_points[i]] = points_4d[:,:3] - fixed_face_center
+
+		return transformed
 
 if __name__ == "__main__":
 	cp = CreasePattern('patterns/simple.json')
