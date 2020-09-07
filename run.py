@@ -14,7 +14,7 @@ from solver import Solver
 if __name__ == "__main__":
 	# Initialize the crease pattern and solver
 	increments = 50
-	crease_pattern = CreasePattern('patterns/unfolding.json', 15.0)
+	crease_pattern = CreasePattern('patterns/unfolding.json', 30.0)
 	solver = Solver(num_increments=increments)
 
 	# Hide toolbars (with "save" button, etc.) and set the GUI theme
@@ -25,7 +25,7 @@ if __name__ == "__main__":
 	solve = True
 	print_fold_angles = False
 	export_keyframes = False
-	show_grid_in_xyz = True
+	show_grid_in_xyz = False
 	show_crease_pattern_plot = False
 	size = 60
 
