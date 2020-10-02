@@ -14,7 +14,7 @@ from solver import Solver
 if __name__ == "__main__":
 	# Initialize the crease pattern and solver
 	increments = 50
-	crease_pattern = CreasePattern('patterns/unfolding.json', 30.0)
+	crease_pattern = CreasePattern('patterns/waterbomb.json', 30.0)
 	solver = Solver(num_increments=increments)
 
 	# Hide toolbars (with "save" button, etc.) and set the GUI theme
@@ -24,7 +24,7 @@ if __name__ == "__main__":
 	# Create a 3D plot for displaying various folded configurations of the model
 	solve = True
 	print_fold_angles = False
-	export_keyframes = False
+	export_keyframes = True
 	show_grid_in_xyz = False
 	show_crease_pattern_plot = False
 	size = 60

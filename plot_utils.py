@@ -42,7 +42,7 @@ def plot_reference_configuration(axes_3d, crease_pattern):
 
 	plot_custom_configuration(axes_3d, crease_pattern, fold_angles)
 
-def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_name='magma', alpha=1.0, edges=False):
+def plot_custom_configuration(axes_3d, crease_pattern, fold_angles, color_map_name='terrain', alpha=1.0, edges=False):
 	'''Draws the crease pattern in a particular folded state
 
 	'''
